@@ -41,7 +41,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-graphics")
     implementation("androidx.compose.material3:material3")
 
-    // Media3 / ExoPlayer
+    // Media3 / ExoPlayer & Session
     implementation("androidx.media3:media3-exoplayer:1.2.1")
     implementation("androidx.media3:media3-ui:1.2.1")
+    implementation("androidx.media3:media3-session:1.2.1")
 }
