@@ -42,6 +42,8 @@ import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import org.json.JSONArray
+import org.json.JSONObject
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -63,7 +65,7 @@ class MainActivity : ComponentActivity() {
 fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     val context = LocalContext.current
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
-    val sharedPrefs = remember { context.getSharedPreferences("MiaubertoPrefs", Context.MODE_PRIVATE) }
+    val sharedPrefs = remember { context.getSharedPreferences("MiaubertoPrefsPlaylists", Context.MODE_PRIVATE) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -75,30 +77,26 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }
     }
 
+    // Estructura de Múltiples Listas de Reproducción Guardadas
+    var savedPlaylistsMap by remember {
+        mutableStateOf(loadPlaylistsFromPrefs(sharedPrefs))
+    }
+    var currentPlaylistName by remember { mutableStateOf("Lista Principal") }
     var playlist by remember {
-        mutableStateOf<List<Uri>>(
-            sharedPrefs.getStringSet("saved_playlist", emptySet())
-                ?.map { Uri.parse(it) } ?: emptyList()
-        )
+        mutableStateOf(savedPlaylistsMap[currentPlaylistName] ?: emptyList())
     }
 
+    var showNewPlaylistDialog by remember { mutableStateOf(false) }
+    var newPlaylistNameInput by remember { mutableStateOf("") }
+    var showSelectPlaylistMenu by remember { mutableStateOf(false) }
+
     var currentIndex by remember { mutableIntStateOf(-1) }
-    var lyricsText by remember {
-        mutableStateOf(
-            if (playlist.isNotEmpty()) "Se cargaron ${playlist.size} archivos guardados."
-            else "Selecciona archivos multimedia para empezar."
-        )
-    }
+    var lyricsText by remember { mutableStateOf("Selecciona archivos o crea una lista.") }
 
     var isPlaying by remember { mutableStateOf(false) }
     var isCarMode by remember { mutableStateOf(false) }
     var miaubertoEmoji by remember { mutableStateOf("😴") }
-    var miaubertoStatusText by remember {
-        mutableStateOf(
-            if (playlist.isNotEmpty()) "Miauberto recordó tu lista anterior."
-            else "Miauberto está descansando..."
-        )
-    }
+    var miaubertoStatusText by remember { mutableStateOf("Miauberto está descansando...") }
     var clickCountBySpam by remember { mutableIntStateOf(0) }
     var gestureOverlayText by remember { mutableStateOf("") }
 
@@ -106,7 +104,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     var sleepTimerText by remember { mutableStateOf("⏱️ Off") }
     var timerObj by remember { mutableStateOf<CountDownTimer?>(null) }
 
-    // Controlador conectado al servicio Media3
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
 
     DisposableEffect(context) {
@@ -127,6 +124,14 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                         } else {
                             miaubertoEmoji = "😴"
                             miaubertoStatusText = "En pausa. Miauberto se durmió."
+                        }
+                    }
+
+                    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                        super.onMediaItemTransition(mediaItem, reason)
+                        val index = controller.currentMediaItemIndex
+                        if (index >= 0) {
+                            currentIndex = index
                         }
                     }
                 })
@@ -187,16 +192,58 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 }
             }
 
-            playlist = uris
-            currentIndex = 0
-            mediaController?.let { playMediaItem(it, playlist[0]) }
-            lyricsText = "Cargado: ${playlist[0].lastPathSegment ?: "Archivo multimedia"}"
-            clickCountBySpam = 0
+            val updatedList = playlist + uris
+            playlist = updatedList
+            val updatedMap = savedPlaylistsMap.toMutableMap()
+            updatedMap[currentPlaylistName] = updatedList
+            savedPlaylistsMap = updatedMap
+            savePlaylistsToPrefs(sharedPrefs, updatedMap)
 
-            val uriStrings = uris.map { it.toString() }.toSet()
-            sharedPrefs.edit().putStringSet("saved_playlist", uriStrings).apply()
-            miaubertoStatusText = "¡Lista de reproducción guardada!"
+            currentIndex = 0
+            mediaController?.let { setFullPlaylistAndPlay(it, updatedList, 0) }
+            lyricsText = "Cargado: ${updatedList[0].lastPathSegment ?: "Archivo multimedia"}"
+            clickCountBySpam = 0
+            miaubertoStatusText = "¡Canciones agregadas a $currentPlaylistName!"
         }
+    }
+
+    // DIÁLOGO CREAR NUEVA PLAYLIST
+    if (showNewPlaylistDialog) {
+        AlertDialog(
+            onDismissRequest = { showNewPlaylistDialog = false },
+            title = { Text("Nueva Lista de Reproducción", color = Color.White) },
+            text = {
+                OutlinedTextField(
+                    value = newPlaylistNameInput,
+                    onValueChange = { newPlaylistNameInput = it },
+                    label = { Text("Nombre de la lista") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newPlaylistNameInput.isNotBlank()) {
+                            val updatedMap = savedPlaylistsMap.toMutableMap()
+                            if (!updatedMap.containsKey(newPlaylistNameInput)) {
+                                updatedMap[newPlaylistNameInput] = emptyList()
+                                savedPlaylistsMap = updatedMap
+                                savePlaylistsToPrefs(sharedPrefs, updatedMap)
+                                currentPlaylistName = newPlaylistNameInput
+                                playlist = emptyList()
+                            }
+                            newPlaylistNameInput = ""
+                            showNewPlaylistDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9))
+                ) { Text("Crear") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNewPlaylistDialog = false }) { Text("Cancelar", color = Color.Gray) }
+            },
+            containerColor = Color(0xFF1E293B)
+        )
     }
 
     if (isCarMode) {
@@ -241,13 +288,10 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             ) {
                 Button(
                     onClick = {
-                        if (playlist.isNotEmpty() && currentIndex > 0) {
-                            currentIndex--
-                            mediaController?.let { playMediaItem(it, playlist[currentIndex]) }
-                        }
+                        mediaController?.seekToPreviousMediaItem()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                    enabled = currentIndex > 0,
+                    enabled = playlist.isNotEmpty(),
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 ) { Text("⏮", fontSize = 36.sp, color = Color.White) }
 
@@ -263,13 +307,10 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
                 Button(
                     onClick = {
-                        if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
-                            currentIndex++
-                            mediaController?.let { playMediaItem(it, playlist[currentIndex]) }
-                        }
+                        mediaController?.seekToNextMediaItem()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                    enabled = playlist.isNotEmpty() && currentIndex < playlist.size - 1,
+                    enabled = playlist.isNotEmpty(),
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 ) { Text("⏭", fontSize = 36.sp, color = Color.White) }
             }
@@ -439,6 +480,48 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // BARRA DE ACCIÓN: SELECCIÓN Y CREACIÓN DE LISTAS
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(modifier = Modifier.weight(1f)) {
+                    Button(
+                        onClick = { showSelectPlaylistMenu = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("📋 $currentPlaylistName ▾", fontSize = 12.sp, color = Color.White, maxLines = 1)
+                    }
+
+                    DropdownMenu(
+                        expanded = showSelectPlaylistMenu,
+                        onDismissRequest = { showSelectPlaylistMenu = false }
+                    ) {
+                        savedPlaylistsMap.keys.forEach { name ->
+                            DropdownMenuItem(
+                                text = { Text(name) },
+                                onClick = {
+                                    currentPlaylistName = name
+                                    playlist = savedPlaylistsMap[name] ?: emptyList()
+                                    showSelectPlaylistMenu = false
+                                    if (playlist.isNotEmpty()) {
+                                        mediaController?.let { setFullPlaylistAndPlay(it, playlist, 0) }
+                                    }
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Button(
+                    onClick = { showNewPlaylistDialog = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
+                ) { Text("➕ Nueva Lista", fontSize = 12.sp, color = Color.White) }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -447,30 +530,24 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     onClick = { filePickerLauncher.launch(arrayOf("audio/*", "video/*")) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
                     modifier = Modifier.weight(1f)
-                ) { Text("📁 Abrir", color = Color.White) }
+                ) { Text("📁 + Añadir Audio", color = Color.White) }
 
                 Button(
                     onClick = {
-                        if (playlist.isNotEmpty() && currentIndex > 0) {
-                            currentIndex--
-                            mediaController?.let { playMediaItem(it, playlist[currentIndex]) }
-                            triggerSpamReaction()
-                        }
+                        mediaController?.seekToPreviousMediaItem()
+                        triggerSpamReaction()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                    enabled = currentIndex > 0
+                    enabled = playlist.isNotEmpty()
                 ) { Text("⏮", color = Color.White) }
 
                 Button(
                     onClick = {
-                        if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
-                            currentIndex++
-                            mediaController?.let { playMediaItem(it, playlist[currentIndex]) }
-                            triggerSpamReaction()
-                        }
+                        mediaController?.seekToNextMediaItem()
+                        triggerSpamReaction()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                    enabled = playlist.isNotEmpty() && currentIndex < playlist.size - 1
+                    enabled = playlist.isNotEmpty()
                 ) { Text("⏭", color = Color.White) }
             }
 
@@ -524,7 +601,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             Button(
                                 onClick = {
                                     currentIndex = index
-                                    mediaController?.let { playMediaItem(it, playlist[index]) }
+                                    mediaController?.let { setFullPlaylistAndPlay(it, playlist, index) }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 contentPadding = PaddingValues(0.dp)
@@ -587,21 +664,55 @@ fun AudioVisualizerBars(isPlaying: Boolean) {
     }
 }
 
-private fun playMediaItem(controller: MediaController, uri: Uri) {
-    val fileName = uri.lastPathSegment ?: "Canción de Miauberto"
-    val mediaItem = MediaItem.Builder()
-        .setUri(uri)
-        .setMediaMetadata(
-            MediaMetadata.Builder()
-                .setTitle(fileName)
-                .setArtist("Miauberto Player")
-                .build()
-        )
-        .build()
+private fun setFullPlaylistAndPlay(controller: MediaController, uris: List<Uri>, startIndex: Int) {
+    if (uris.isEmpty()) return
+    val mediaItems = uris.map { uri ->
+        val fileName = uri.lastPathSegment ?: "Canción de Miauberto"
+        MediaItem.Builder()
+            .setUri(uri)
+            .setMediaMetadata(
+                MediaMetadata.Builder()
+                    .setTitle(fileName)
+                    .setArtist("Miauberto Player")
+                    .build()
+            )
+            .build()
+    }
 
-    controller.setMediaItem(mediaItem)
+    controller.setMediaItems(mediaItems, startIndex, 0L)
     controller.prepare()
     controller.play()
+}
+
+private fun savePlaylistsToPrefs(prefs: android.content.SharedPreferences, map: Map<String, List<Uri>>) {
+    val jsonObject = JSONObject()
+    map.forEach { (name, uris) ->
+        val jsonArray = JSONArray()
+        uris.forEach { jsonArray.put(it.toString()) }
+        jsonObject.put(name, jsonArray)
+    }
+    prefs.edit().putString("all_playlists_json", jsonObject.toString()).apply()
+}
+
+private fun loadPlaylistsFromPrefs(prefs: android.content.SharedPreferences): Map<String, List<Uri>> {
+    val jsonString = prefs.getString("all_playlists_json", null) ?: return mapOf("Lista Principal" to emptyList())
+    val map = mutableMapOf<String, List<Uri>>()
+    try {
+        val jsonObject = JSONObject(jsonString)
+        val keys = jsonObject.keys()
+        while (keys.hasNext()) {
+            val key = keys.next()
+            val array = jsonObject.getJSONArray(key)
+            val list = mutableListOf<Uri>()
+            for (i in 0 until array.length()) {
+                list.add(Uri.parse(array.getString(i)))
+            }
+            map[key] = list
+        }
+    } catch (e: Exception) {
+        map["Lista Principal"] = emptyList()
+    }
+    return if (map.isEmpty()) mapOf("Lista Principal" to emptyList()) else map
 }
 
 @Composable
