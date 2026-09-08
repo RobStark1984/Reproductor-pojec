@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
 fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     val context = LocalContext.current
     val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    val sharedPrefs = remember { context.getSharedPreferences("MiaubertoPrefs", Context.MODE_PRIVATE) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -69,14 +70,31 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }
     }
 
-    var playlist by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    // Cargar playlist guardada previamente en SharedPreferences
+    var playlist by remember {
+        mutableStateOf<List<Uri>>(
+            sharedPrefs.getStringSet("saved_playlist", emptySet())
+                ?.map { Uri.parse(it) } ?: emptyList()
+        )
+    }
+
     var currentIndex by remember { mutableIntStateOf(-1) }
-    var lyricsText by remember { mutableStateOf("Selecciona archivos multimedia para empezar.") }
+    var lyricsText by remember {
+        mutableStateOf(
+            if (playlist.isNotEmpty()) "Se cargaron ${playlist.size} archivos guardados."
+            else "Selecciona archivos multimedia para empezar."
+        )
+    }
 
     var isPlaying by remember { mutableStateOf(false) }
     var isCarMode by remember { mutableStateOf(false) }
     var miaubertoEmoji by remember { mutableStateOf("😴") }
-    var miaubertoStatusText by remember { mutableStateOf("Miauberto está descansando...") }
+    var miaubertoStatusText by remember {
+        mutableStateOf(
+            if (playlist.isNotEmpty()) "Miauberto recordó tu lista anterior."
+            else "Miauberto está descansando..."
+        )
+    }
     var clickCountBySpam by remember { mutableIntStateOf(0) }
     var gestureOverlayText by remember { mutableStateOf("") }
 
@@ -132,15 +150,32 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }.start()
     }
 
+    // Selector de archivos con retención de permisos (Persistable URI Permission)
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents()
+        contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris: List<Uri> ->
         if (uris.isNotEmpty()) {
+            uris.forEach { uri ->
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            }
+
             playlist = uris
             currentIndex = 0
             playMedia(context, exoPlayer, playlist[0])
             lyricsText = "Cargado: ${playlist[0].lastPathSegment ?: "Archivo multimedia"}"
             clickCountBySpam = 0
+
+            // Guardar lista en SharedPreferences
+            val uriStrings = uris.map { it.toString() }.toSet()
+            sharedPrefs.edit().putStringSet("saved_playlist", uriStrings).apply()
+            miaubertoStatusText = "¡Lista de reproducción guardada!"
         }
     }
 
@@ -395,7 +430,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Button(
-                    onClick = { filePickerLauncher.launch("*/*") },
+                    onClick = { filePickerLauncher.launch(arrayOf("audio/*", "video/*")) },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
                     modifier = Modifier.weight(1f)
                 ) { Text("📁 Abrir") }
@@ -469,8 +504,19 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                                 text = uri.lastPathSegment ?: "Archivo ${index + 1}",
                                 color = if (isSelected) Color(0xFFE50914) else Color.White,
                                 fontSize = 12.sp,
-                                maxLines = 1
+                                maxLines = 1,
+                                modifier = Modifier.weight(1f)
                             )
+                            Button(
+                                onClick = {
+                                    currentIndex = index
+                                    playMedia(context, exoPlayer, playlist[index])
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                                contentPadding = PaddingValues(0.dp)
+                            ) {
+                                Text("▶", color = Color.White, fontSize = 12.sp)
+                            }
                         }
                     }
                 }
