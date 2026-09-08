@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,10 +19,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 
@@ -48,8 +51,36 @@ fun MiaubertoPlayerScreen() {
     var currentIndex by remember { mutableIntStateOf(-1) }
     var lyricsText by remember { mutableStateOf("Selecciona archivos multimedia para empezar.") }
 
+    // Estados de personalidad de Miauberto
+    var isPlaying by remember { mutableStateOf(false) }
+    var miaubertoEmoji by remember { mutableStateOf("😴") }
+    var miaubertoStatusText by remember { mutableStateOf("Miauberto está descansando...") }
+    var clickCountBySpam by remember { mutableIntStateOf(0) }
+
     val exoPlayer = remember {
-        ExoPlayer.Builder(context).build()
+        ExoPlayer.Builder(context).build().apply {
+            addListener(object : Player.Listener {
+                override fun onIsPlayingChanged(playing: Boolean) {
+                    isPlaying = playing
+                    if (playing) {
+                        miaubertoEmoji = "🕶️😼"
+                        miaubertoStatusText = "Miauberto está disfrutando la música."
+                    } else {
+                        miaubertoEmoji = "😴"
+                        miaubertoStatusText = "En pausa. Miauberto se durmió."
+                    }
+                }
+            })
+        }
+    }
+
+    // Detectar si el usuario presiona rápido Siguiente/Anterior (spam)
+    fun triggerSpamReaction() {
+        clickCountBySpam++
+        if (clickCountBySpam >= 4) {
+            miaubertoEmoji = "😾💢"
+            miaubertoStatusText = "¡Oye! Deja de cambiar la canción tan rápido."
+        }
     }
 
     val filePickerLauncher = rememberLauncherForActivityResult(
@@ -60,6 +91,7 @@ fun MiaubertoPlayerScreen() {
             currentIndex = 0
             playMedia(exoPlayer, playlist[0])
             lyricsText = "Cargado: ${playlist[0].lastPathSegment ?: "Archivo multimedia"}"
+            clickCountBySpam = 0
         }
     }
 
@@ -75,11 +107,13 @@ fun MiaubertoPlayerScreen() {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // ENCABEZADO CON EXP REACCIÓN DE MIAUBERTO
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(bottom = 16.dp)
+            horizontalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(bottom = 8.dp)
         ) {
-            Text(text = "😾", fontSize = 32.sp)
+            Text(text = miaubertoEmoji, fontSize = 32.sp)
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = "MIAUBERTO PLAYER",
@@ -89,6 +123,17 @@ fun MiaubertoPlayerScreen() {
             )
         }
 
+        // MENSAJE DE ESTADO DE MIAUBERTO
+        Text(
+            text = miaubertoStatusText,
+            color = Color(0xFFFF8A80),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+
+        // REPRODUCTOR
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -108,6 +153,7 @@ fun MiaubertoPlayerScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // CONTROLES DE REPRODUCCIÓN
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
@@ -124,6 +170,7 @@ fun MiaubertoPlayerScreen() {
                     if (playlist.isNotEmpty() && currentIndex > 0) {
                         currentIndex--
                         playMedia(exoPlayer, playlist[currentIndex])
+                        triggerSpamReaction()
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
@@ -136,6 +183,7 @@ fun MiaubertoPlayerScreen() {
                     if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
                         currentIndex++
                         playMedia(exoPlayer, playlist[currentIndex])
+                        triggerSpamReaction()
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
@@ -147,6 +195,7 @@ fun MiaubertoPlayerScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // PANEL DE LETRAS
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(10.dp),
@@ -172,6 +221,7 @@ fun MiaubertoPlayerScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
+        // LISTA DE REPRODUCCIÓN
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(10.dp),
