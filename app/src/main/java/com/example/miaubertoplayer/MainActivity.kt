@@ -20,6 +20,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,8 +43,13 @@ import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
+import kotlinx.coroutines.delay
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.BufferedReader
+import java.io.InputStreamReader
+
+data class LrcLine(val timeMs: Long, val text: String)
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -77,21 +83,19 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }
     }
 
-    // Estructura de Múltiples Listas de Reproducción Guardadas
-    var savedPlaylistsMap by remember {
-        mutableStateOf(loadPlaylistsFromPrefs(sharedPrefs))
-    }
+    var savedPlaylistsMap by remember { mutableStateOf(loadPlaylistsFromPrefs(sharedPrefs)) }
     var currentPlaylistName by remember { mutableStateOf("Lista Principal") }
-    var playlist by remember {
-        mutableStateOf(savedPlaylistsMap[currentPlaylistName] ?: emptyList())
-    }
+    var playlist by remember { mutableStateOf(savedPlaylistsMap[currentPlaylistName] ?: emptyList()) }
 
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistNameInput by remember { mutableStateOf("") }
     var showSelectPlaylistMenu by remember { mutableStateOf(false) }
 
     var currentIndex by remember { mutableIntStateOf(-1) }
-    var lyricsText by remember { mutableStateOf("Selecciona archivos o crea una lista.") }
+
+    // Estados de Karaoke y Letras
+    var lrcLines by remember { mutableStateOf<List<LrcLine>>(emptyList()) }
+    var currentLrcIndex by remember { mutableIntStateOf(-1) }
 
     var isPlaying by remember { mutableStateOf(false) }
     var isCarMode by remember { mutableStateOf(false) }
@@ -105,6 +109,20 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     var timerObj by remember { mutableStateOf<CountDownTimer?>(null) }
 
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+
+    // Sincronizador en tiempo real para Karaoke
+    LaunchedEffect(isPlaying, lrcLines) {
+        while (isPlaying && lrcLines.isNotEmpty()) {
+            mediaController?.let { controller ->
+                val pos = controller.currentPosition
+                val activeIndex = lrcLines.indexOfLast { it.timeMs <= pos }
+                if (activeIndex != currentLrcIndex && activeIndex >= 0) {
+                    currentLrcIndex = activeIndex
+                }
+            }
+            delay(250)
+        }
+    }
 
     DisposableEffect(context) {
         val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
@@ -201,13 +219,22 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             currentIndex = 0
             mediaController?.let { setFullPlaylistAndPlay(it, updatedList, 0) }
-            lyricsText = "Cargado: ${updatedList[0].lastPathSegment ?: "Archivo multimedia"}"
             clickCountBySpam = 0
             miaubertoStatusText = "¡Canciones agregadas a $currentPlaylistName!"
         }
     }
 
-    // DIÁLOGO CREAR NUEVA PLAYLIST
+    // Picker exclusivo para cargar archivo .lrc
+    val lrcPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            lrcLines = parseLrcFromUri(context, it)
+            currentLrcIndex = -1
+            miaubertoStatusText = "🎤 Letra Karaoke cargada"
+        }
+    }
+
     if (showNewPlaylistDialog) {
         AlertDialog(
             onDismissRequest = { showNewPlaylistDialog = false },
@@ -287,28 +314,20 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     .height(100.dp)
             ) {
                 Button(
-                    onClick = {
-                        mediaController?.seekToPreviousMediaItem()
-                    },
+                    onClick = { mediaController?.seekToPreviousMediaItem() },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                     enabled = playlist.isNotEmpty(),
                     modifier = Modifier.weight(1f).fillMaxHeight()
                 ) { Text("⏮", fontSize = 36.sp, color = Color.White) }
 
                 Button(
-                    onClick = {
-                        mediaController?.let {
-                            if (it.isPlaying) it.pause() else it.play()
-                        }
-                    },
+                    onClick = { mediaController?.let { if (it.isPlaying) it.pause() else it.play() } },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
                     modifier = Modifier.weight(1.2f).fillMaxHeight()
                 ) { Text(if (isPlaying) "⏸" else "▶", fontSize = 42.sp, color = Color.White) }
 
                 Button(
-                    onClick = {
-                        mediaController?.seekToNextMediaItem()
-                    },
+                    onClick = { mediaController?.seekToNextMediaItem() },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                     enabled = playlist.isNotEmpty(),
                     modifier = Modifier.weight(1f).fillMaxHeight()
@@ -400,9 +419,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             useController = true
                         }
                     },
-                    update = { view ->
-                        view.player = mediaController
-                    },
+                    update = { view -> view.player = mediaController },
                     modifier = Modifier.fillMaxSize()
                 )
 
@@ -455,6 +472,12 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) { Text("🚗 Coche", fontSize = 11.sp, color = Color.White) }
+
+                    Button(
+                        onClick = { lrcPickerLauncher.launch("*/*") },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) { Text("🎤 .LRC", fontSize = 11.sp, color = Color.White) }
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -553,20 +576,48 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // PANEL DE KARAOKE CON SCROLL AUTOMÁTICO
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(45.dp)
+                    .height(80.dp)
             ) {
-                Column(modifier = Modifier.padding(8.dp)) {
-                    Text(
-                        text = "🎤 Info: $lyricsText",
-                        color = Color(0xFF94A3B8),
-                        fontSize = 12.sp,
-                        maxLines = 1
-                    )
+                if (lrcLines.isNotEmpty()) {
+                    val listState = rememberLazyListState()
+                    LaunchedEffect(currentLrcIndex) {
+                        if (currentLrcIndex >= 0) {
+                            listState.animateScrollToItem(currentLrcIndex)
+                        }
+                    }
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.padding(8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        itemsIndexed(lrcLines) { index, line ->
+                            val isActive = index == currentLrcIndex
+                            Text(
+                                text = line.text,
+                                color = if (isActive) Color(0xFF38BDF8) else Color(0xFF64748B),
+                                fontSize = if (isActive) 14.sp else 12.sp,
+                                fontWeight = if (isActive) FontWeight.Bold else FontWeight.Normal,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 2.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "🎤 Toca '.LRC' para cargar la letra sincronizada.",
+                            color = Color(0xFF94A3B8),
+                            fontSize = 12.sp
+                        )
+                    }
                 }
             }
 
@@ -623,6 +674,37 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             )
         }
     }
+}
+
+// Parser de archivos de letras .LRC
+private fun parseLrcFromUri(context: Context, uri: Uri): List<LrcLine> {
+    val list = mutableListOf<LrcLine>()
+    try {
+        context.contentResolver.openInputStream(uri)?.use { inputStream ->
+            BufferedReader(InputStreamReader(inputStream)).use { reader ->
+                var line = reader.readLine()
+                while (line != null) {
+                    val regex = "\\[(\\d{2}):(\\d{2})\\.(\\d{2,3})\\](.*)".toRegex()
+                    val match = regex.find(line)
+                    if (match != null) {
+                        val min = match.groupValues[1].toLong()
+                        val sec = match.groupValues[2].toLong()
+                        val millisStr = match.groupValues[3]
+                        val ms = if (millisStr.length == 2) millisStr.toLong() * 10 else millisStr.toLong()
+                        val totalMs = (min * 60 * 1000) + (sec * 1000) + ms
+                        val text = match.groupValues[4].trim()
+                        if (text.isNotEmpty()) {
+                            list.add(LrcLine(totalMs, text))
+                        }
+                    }
+                    line = reader.readLine()
+                }
+            }
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return list.sortedBy { it.timeMs }
 }
 
 @Composable
