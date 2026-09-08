@@ -571,7 +571,18 @@ fun AudioVisualizerBars(isPlaying: Boolean) {
 }
 
 private fun playMedia(context: Context, exoPlayer: ExoPlayer, uri: Uri) {
-    val mediaItem = MediaItem.fromUri(uri)
+    val fileName = uri.lastPathSegment ?: "Canción de Miauberto"
+    
+    val mediaItem = MediaItem.Builder()
+        .setUri(uri)
+        .setMediaMetadata(
+            androidx.media3.common.MediaMetadata.Builder()
+                .setTitle(fileName)
+                .setArtist("Miauberto Player")
+                .build()
+        )
+        .build()
+
     exoPlayer.setMediaItem(mediaItem)
     exoPlayer.prepare()
     exoPlayer.play()
