@@ -12,11 +12,21 @@ class PlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
         val player = ExoPlayer.Builder(this).build()
-        mediaSession = MediaSession.Builder(this, player).build()
+
+        mediaSession = MediaSession.Builder(this, player)
+            .setCallback(object : MediaSession.Callback {})
+            .build()
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
         return mediaSession
+    }
+
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val player = mediaSession?.player
+        if (player != null && !player.playWhenReady) {
+            stopSelf()
+        }
     }
 
     override fun onDestroy() {
