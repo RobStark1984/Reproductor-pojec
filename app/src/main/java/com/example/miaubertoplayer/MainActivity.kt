@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -77,7 +78,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     var clickCountBySpam by remember { mutableIntStateOf(0) }
     var gestureOverlayText by remember { mutableStateOf("") }
 
-    // Estados para Velocidad y Sleep Timer
     var currentSpeed by remember { mutableFloatStateOf(1.0f) }
     var sleepTimerText by remember { mutableStateOf("⏱️ Off") }
     var timerObj by remember { mutableStateOf<CountDownTimer?>(null) }
@@ -183,7 +183,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .height(180.dp)
                 .background(Color.Black, shape = RoundedCornerShape(12.dp))
                 .pointerInput(Unit) {
                     detectTapGestures(
@@ -254,13 +254,17 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // PANEL DE CONTROLES AVANZADOS (VELOCIDAD Y TEMPORIZADOR)
+        // VISUALIZADOR DE AUDIO ANIMADO
+        AudioVisualizerBars(isPlaying = isPlaying)
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // CONTROLES AVANZADOS
         Row(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            // Botón Selector de Velocidad
             Button(
                 onClick = {
                     currentSpeed = when (currentSpeed) {
@@ -277,7 +281,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 Text("🚀 ${currentSpeed}x", fontSize = 12.sp)
             }
 
-            // Selector de Sleep Timer
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 Button(
                     onClick = { startSleepTimer(15) },
@@ -339,13 +342,13 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // LETRAS Y LISTA
+        // PANEL DE LETRAS Y LISTA
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp)
+                .height(50.dp)
         ) {
             Column(modifier = Modifier.padding(8.dp)) {
                 Text(
@@ -397,6 +400,45 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
+    }
+}
+
+@Composable
+fun AudioVisualizerBars(isPlaying: Boolean) {
+    val infiniteTransition = rememberInfiniteTransition(label = "visualizer")
+    
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.Bottom,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(24.dp)
+            .background(Color(0xFF1A1A1A), shape = RoundedCornerShape(6.dp))
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+    ) {
+        val durations = listOf(400, 600, 350, 500, 700, 450, 550, 380, 620, 480)
+        durations.forEachIndexed { index, duration ->
+            val heightMultiplier by if (isPlaying) {
+                infiniteTransition.animateFloat(
+                    initialValue = 0.2f,
+                    targetValue = 1.0f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(durationMillis = duration, easing = LinearEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "bar_$index"
+                )
+            } else {
+                remember { mutableFloatStateOf(0.1f) }
+            }
+
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(heightMultiplier)
+                    .background(Color(0xFFE50914), shape = RoundedCornerShape(2.dp))
+            )
+        }
     }
 }
 
