@@ -6,7 +6,7 @@ import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.view.WindowManager
+import android.os.CountDownTimer
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
@@ -76,6 +77,11 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     var clickCountBySpam by remember { mutableIntStateOf(0) }
     var gestureOverlayText by remember { mutableStateOf("") }
 
+    // Estados para Velocidad y Sleep Timer
+    var currentSpeed by remember { mutableFloatStateOf(1.0f) }
+    var sleepTimerText by remember { mutableStateOf("⏱️ Off") }
+    var timerObj by remember { mutableStateOf<CountDownTimer?>(null) }
+
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             addListener(object : Player.Listener {
@@ -101,6 +107,29 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }
     }
 
+    fun startSleepTimer(minutes: Int) {
+        timerObj?.cancel()
+        if (minutes == 0) {
+            sleepTimerText = "⏱️ Off"
+            return
+        }
+        val millis = minutes * 60 * 1000L
+        timerObj = object : CountDownTimer(millis, 1000) {
+            override fun onTick(millisUntilFinished: Long) {
+                val minsLeft = millisUntilFinished / 1000 / 60
+                val secsLeft = (millisUntilFinished / 1000) % 60
+                sleepTimerText = String.format("⏱️ %02d:%02d", minsLeft, secsLeft)
+            }
+
+            override fun onFinish() {
+                exoPlayer.pause()
+                sleepTimerText = "⏱️ Off"
+                miaubertoEmoji = "😴💤"
+                miaubertoStatusText = "Temporizador finalizado. Miauberto se fue a dormir."
+            }
+        }.start()
+    }
+
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
@@ -114,7 +143,10 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     }
 
     DisposableEffect(Unit) {
-        onDispose { exoPlayer.release() }
+        onDispose {
+            timerObj?.cancel()
+            exoPlayer.release()
+        }
     }
 
     Column(
@@ -126,7 +158,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(bottom = 8.dp)
+            modifier = Modifier.padding(bottom = 4.dp)
         ) {
             Text(text = miaubertoEmoji, fontSize = 32.sp)
             Spacer(modifier = Modifier.width(8.dp))
@@ -144,14 +176,14 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(bottom = 12.dp)
+            modifier = Modifier.padding(bottom = 8.dp)
         )
 
-        // CONTENEDOR DEL REPRODUCTOR CON DETECCIÓN DE GESTOS
+        // REPRODUCTOR
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp)
+                .height(200.dp)
                 .background(Color.Black, shape = RoundedCornerShape(12.dp))
                 .pointerInput(Unit) {
                     detectTapGestures(
@@ -176,7 +208,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                         val isLeftSide = change.position.x < width / 2
 
                         if (isLeftSide) {
-                            // Control de Brillo (Lado Izquierdo)
                             val layoutParams = activity.window.attributes
                             var currentBrightness = if (layoutParams.screenBrightness < 0) 0.5f else layoutParams.screenBrightness
                             currentBrightness = (currentBrightness - (dragAmount.y / 1000f)).coerceIn(0.1f, 1.0f)
@@ -184,7 +215,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             activity.window.attributes = layoutParams
                             gestureOverlayText = "☀️ Brillo: ${(currentBrightness * 100).toInt()}%"
                         } else {
-                            // Control de Volumen (Lado Derecho)
                             val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
                             val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
                             val delta = if (dragAmount.y < 0) 1 else -1
@@ -205,7 +235,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 modifier = Modifier.fillMaxSize()
             )
 
-            // Indicador flotante en pantalla para gestos
             if (gestureOverlayText.isNotEmpty()) {
                 Surface(
                     color = Color.Black.copy(alpha = 0.7f),
@@ -223,8 +252,56 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
+        // PANEL DE CONTROLES AVANZADOS (VELOCIDAD Y TEMPORIZADOR)
+        Row(
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            // Botón Selector de Velocidad
+            Button(
+                onClick = {
+                    currentSpeed = when (currentSpeed) {
+                        0.5f -> 1.0f
+                        1.0f -> 1.25f
+                        1.25f -> 1.5f
+                        1.5f -> 2.0f
+                        else -> 0.5f
+                    }
+                    exoPlayer.playbackParameters = PlaybackParameters(currentSpeed)
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333))
+            ) {
+                Text("🚀 ${currentSpeed}x", fontSize = 12.sp)
+            }
+
+            // Selector de Sleep Timer
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Button(
+                    onClick = { startSleepTimer(15) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) { Text("15m", fontSize = 11.sp) }
+
+                Button(
+                    onClick = { startSleepTimer(30) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) { Text("30m", fontSize = 11.sp) }
+
+                Button(
+                    onClick = { startSleepTimer(0) },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                    contentPadding = PaddingValues(horizontal = 8.dp)
+                ) { Text(sleepTimerText, fontSize = 11.sp) }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // BARRAS DE CONTROL BÁSICO
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
@@ -233,9 +310,8 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 onClick = { filePickerLauncher.launch("*/*") },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
                 modifier = Modifier.weight(1f)
-            ) {
-                Text("📁 Abrir")
-            }
+            ) { Text("📁 Abrir") }
+
             Button(
                 onClick = {
                     if (playlist.isNotEmpty() && currentIndex > 0) {
@@ -246,9 +322,8 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
                 enabled = currentIndex > 0
-            ) {
-                Text("⏮")
-            }
+            ) { Text("⏮") }
+
             Button(
                 onClick = {
                     if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
@@ -259,37 +334,30 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
                 enabled = playlist.isNotEmpty() && currentIndex < playlist.size - 1
-            ) {
-                Text("⏭")
-            }
+            ) { Text("⏭") }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
+        // LETRAS Y LISTA
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(80.dp)
+                .height(60.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
+            Column(modifier = Modifier.padding(8.dp)) {
                 Text(
-                    text = "🎤 Letra / Info",
-                    color = Color.Gray,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = lyricsText,
+                    text = "🎤 Info: $lyricsText",
                     color = Color.LightGray,
-                    fontSize = 13.sp
+                    fontSize = 12.sp,
+                    maxLines = 2
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
@@ -308,13 +376,12 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                                 if (isSelected) Color(0xFF333333) else Color.Transparent,
                                 shape = RoundedCornerShape(6.dp)
                             )
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .padding(8.dp)
                     ) {
                         Text(
                             text = uri.lastPathSegment ?: "Archivo ${index + 1}",
                             color = if (isSelected) Color(0xFFE50914) else Color.White,
-                            fontSize = 13.sp,
+                            fontSize = 12.sp,
                             maxLines = 1
                         )
                     }
@@ -322,12 +389,12 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(4.dp))
 
         Text(
             text = "Hecho por: Miauberto",
             color = Color(0xFFE50914),
-            fontSize = 12.sp,
+            fontSize = 11.sp,
             fontWeight = FontWeight.Bold
         )
     }
