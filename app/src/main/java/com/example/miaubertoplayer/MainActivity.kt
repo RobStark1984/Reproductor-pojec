@@ -1,6 +1,7 @@
 package com.example.miaubertoplayer
 
 import android.Manifest
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
@@ -33,10 +34,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
 import androidx.media3.ui.PlayerView
+import com.google.common.util.concurrent.ListenableFuture
+import com.google.common.util.concurrent.MoreExecutors
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -45,7 +50,7 @@ class MainActivity : ComponentActivity() {
             MiaubertoTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF0F172A) // Slate 900
+                    color = Color(0xFF0F172A)
                 ) {
                     MiaubertoPlayerScreen(activity = this)
                 }
@@ -101,20 +106,38 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     var sleepTimerText by remember { mutableStateOf("⏱️ Off") }
     var timerObj by remember { mutableStateOf<CountDownTimer?>(null) }
 
-    val exoPlayer = remember {
-        ExoPlayer.Builder(context).build().apply {
-            addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(playing: Boolean) {
-                    isPlaying = playing
-                    if (playing) {
-                        miaubertoEmoji = if (isCarMode) "🚗😼" else "🕶️😼"
-                        miaubertoStatusText = if (isCarMode) "Modo Coche Activo" else "Miauberto está disfrutando la música."
-                    } else {
-                        miaubertoEmoji = "😴"
-                        miaubertoStatusText = "En pausa. Miauberto se durmió."
+    // Controlador conectado al servicio Media3
+    var mediaController by remember { mutableStateOf<MediaController?>(null) }
+
+    DisposableEffect(context) {
+        val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
+        val controllerFuture: ListenableFuture<MediaController> =
+            MediaController.Builder(context, sessionToken).buildAsync()
+
+        controllerFuture.addListener({
+            try {
+                val controller = controllerFuture.get()
+                mediaController = controller
+                controller.addListener(object : Player.Listener {
+                    override fun onIsPlayingChanged(playing: Boolean) {
+                        isPlaying = playing
+                        if (playing) {
+                            miaubertoEmoji = if (isCarMode) "🚗😼" else "🕶️😼"
+                            miaubertoStatusText = if (isCarMode) "Modo Coche Activo" else "Miauberto está disfrutando la música."
+                        } else {
+                            miaubertoEmoji = "😴"
+                            miaubertoStatusText = "En pausa. Miauberto se durmió."
+                        }
                     }
-                }
-            })
+                })
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }, MoreExecutors.directExecutor())
+
+        onDispose {
+            MediaController.releaseFuture(controllerFuture)
+            timerObj?.cancel()
         }
     }
 
@@ -141,7 +164,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             }
 
             override fun onFinish() {
-                exoPlayer.pause()
+                mediaController?.pause()
                 sleepTimerText = "⏱️ Off"
                 miaubertoEmoji = "😴💤"
                 miaubertoStatusText = "Temporizador finalizado. Miauberto se fue a dormir."
@@ -166,20 +189,13 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             playlist = uris
             currentIndex = 0
-            playMedia(context, exoPlayer, playlist[0])
+            mediaController?.let { playMediaItem(it, playlist[0]) }
             lyricsText = "Cargado: ${playlist[0].lastPathSegment ?: "Archivo multimedia"}"
             clickCountBySpam = 0
 
             val uriStrings = uris.map { it.toString() }.toSet()
             sharedPrefs.edit().putStringSet("saved_playlist", uriStrings).apply()
             miaubertoStatusText = "¡Lista de reproducción guardada!"
-        }
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            timerObj?.cancel()
-            exoPlayer.release()
         }
     }
 
@@ -227,38 +243,34 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     onClick = {
                         if (playlist.isNotEmpty() && currentIndex > 0) {
                             currentIndex--
-                            playMedia(context, exoPlayer, playlist[currentIndex])
+                            mediaController?.let { playMediaItem(it, playlist[currentIndex]) }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                     enabled = currentIndex > 0,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
+                    modifier = Modifier.weight(1f).fillMaxHeight()
                 ) { Text("⏮", fontSize = 36.sp, color = Color.White) }
 
                 Button(
                     onClick = {
-                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                        mediaController?.let {
+                            if (it.isPlaying) it.pause() else it.play()
+                        }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
-                    modifier = Modifier
-                        .weight(1.2f)
-                        .fillMaxHeight()
+                    modifier = Modifier.weight(1.2f).fillMaxHeight()
                 ) { Text(if (isPlaying) "⏸" else "▶", fontSize = 42.sp, color = Color.White) }
 
                 Button(
                     onClick = {
                         if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
                             currentIndex++
-                            playMedia(context, exoPlayer, playlist[currentIndex])
+                            mediaController?.let { playMediaItem(it, playlist[currentIndex]) }
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                     enabled = playlist.isNotEmpty() && currentIndex < playlist.size - 1,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
+                    modifier = Modifier.weight(1f).fillMaxHeight()
                 ) { Text("⏭", fontSize = 36.sp, color = Color.White) }
             }
         }
@@ -286,7 +298,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Text(
                 text = miaubertoStatusText,
-                color = Color(0xFF38BDF8), // Azul fresco
+                color = Color(0xFF38BDF8),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
@@ -301,13 +313,15 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onDoubleTap = { offset ->
-                                val width = size.width
-                                if (offset.x < width / 2) {
-                                    exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
-                                    gestureOverlayText = "⏪ -10s"
-                                } else {
-                                    exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration))
-                                    gestureOverlayText = "⏩ +10s"
+                                mediaController?.let { controller ->
+                                    val width = size.width
+                                    if (offset.x < width / 2) {
+                                        controller.seekTo((controller.currentPosition - 10000).coerceAtLeast(0))
+                                        gestureOverlayText = "⏪ -10s"
+                                    } else {
+                                        controller.seekTo((controller.currentPosition + 10000).coerceAtMost(controller.duration))
+                                        gestureOverlayText = "⏩ +10s"
+                                    }
                                 }
                             }
                         )
@@ -341,9 +355,12 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 AndroidView(
                     factory = { ctx ->
                         PlayerView(ctx).apply {
-                            player = exoPlayer
+                            player = mediaController
                             useController = true
                         }
+                    },
+                    update = { view ->
+                        view.player = mediaController
                     },
                     modifier = Modifier.fillMaxSize()
                 )
@@ -386,7 +403,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                                 1.5f -> 2.0f
                                 else -> 0.5f
                             }
-                            exoPlayer.playbackParameters = PlaybackParameters(currentSpeed)
+                            mediaController?.playbackParameters = PlaybackParameters(currentSpeed)
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
@@ -436,7 +453,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     onClick = {
                         if (playlist.isNotEmpty() && currentIndex > 0) {
                             currentIndex--
-                            playMedia(context, exoPlayer, playlist[currentIndex])
+                            mediaController?.let { playMediaItem(it, playlist[currentIndex]) }
                             triggerSpamReaction()
                         }
                     },
@@ -448,7 +465,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     onClick = {
                         if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
                             currentIndex++
-                            playMedia(context, exoPlayer, playlist[currentIndex])
+                            mediaController?.let { playMediaItem(it, playlist[currentIndex]) }
                             triggerSpamReaction()
                         }
                     },
@@ -507,7 +524,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             Button(
                                 onClick = {
                                     currentIndex = index
-                                    playMedia(context, exoPlayer, playlist[index])
+                                    mediaController?.let { playMediaItem(it, playlist[index]) }
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 contentPadding = PaddingValues(0.dp)
@@ -570,29 +587,21 @@ fun AudioVisualizerBars(isPlaying: Boolean) {
     }
 }
 
-private fun playMedia(context: Context, exoPlayer: ExoPlayer, uri: Uri) {
+private fun playMediaItem(controller: MediaController, uri: Uri) {
     val fileName = uri.lastPathSegment ?: "Canción de Miauberto"
-    
     val mediaItem = MediaItem.Builder()
         .setUri(uri)
         .setMediaMetadata(
-            androidx.media3.common.MediaMetadata.Builder()
+            MediaMetadata.Builder()
                 .setTitle(fileName)
                 .setArtist("Miauberto Player")
                 .build()
         )
         .build()
 
-    exoPlayer.setMediaItem(mediaItem)
-    exoPlayer.prepare()
-    exoPlayer.play()
-
-    val intent = Intent(context, PlaybackService::class.java)
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-        context.startForegroundService(intent)
-    } else {
-        context.startService(intent)
-    }
+    controller.setMediaItem(mediaItem)
+    controller.prepare()
+    controller.play()
 }
 
 @Composable
