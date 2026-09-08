@@ -1,6 +1,8 @@
 package com.example.miaubertoplayer
 
+import android.Manifest
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -47,6 +49,21 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun MiaubertoPlayerScreen() {
     val context = LocalContext.current
+
+    // --- BLOQUE DE PERMISOS PARA NOTIFICACIONES (ANDROID 13+) ---
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        // El usuario aceptó o rechazó las notificaciones
+    }
+
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    // -------------------------------------------------------------
+
     var playlist by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var currentIndex by remember { mutableIntStateOf(-1) }
     var lyricsText by remember { mutableStateOf("Selecciona archivos multimedia para empezar.") }
@@ -107,7 +124,7 @@ fun MiaubertoPlayerScreen() {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ENCABEZADO CON EXP REACCIÓN DE MIAUBERTO
+        // ENCABEZADO CON REACCIÓN DE MIAUBERTO
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
