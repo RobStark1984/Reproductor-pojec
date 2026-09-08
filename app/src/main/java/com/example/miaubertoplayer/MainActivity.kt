@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
             MiaubertoTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF121212)
+                    color = Color(0xFF0F172A) // Slate 900
                 ) {
                     MiaubertoPlayerScreen(activity = this)
                 }
@@ -70,7 +70,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }
     }
 
-    // Cargar playlist guardada previamente en SharedPreferences
     var playlist by remember {
         mutableStateOf<List<Uri>>(
             sharedPrefs.getStringSet("saved_playlist", emptySet())
@@ -150,7 +149,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }.start()
     }
 
-    // Selector de archivos con retención de permisos (Persistable URI Permission)
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris: List<Uri> ->
@@ -172,7 +170,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             lyricsText = "Cargado: ${playlist[0].lastPathSegment ?: "Archivo multimedia"}"
             clickCountBySpam = 0
 
-            // Guardar lista en SharedPreferences
             val uriStrings = uris.map { it.toString() }.toSet()
             sharedPrefs.edit().putStringSet("saved_playlist", uriStrings).apply()
             miaubertoStatusText = "¡Lista de reproducción guardada!"
@@ -190,7 +187,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black)
+                .background(Color(0xFF0F172A))
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
@@ -200,10 +197,10 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(text = "🚗 MODO COCHE", color = Color(0xFFE50914), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Text(text = "🚗 MODO COCHE", color = Color(0xFF38BDF8), fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 Button(
                     onClick = { isCarMode = false },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333))
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155))
                 ) { Text("❌ Salir", fontSize = 14.sp) }
             }
 
@@ -233,22 +230,22 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             playMedia(context, exoPlayer, playlist[currentIndex])
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222222)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                     enabled = currentIndex > 0,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                ) { Text("⏮", fontSize = 36.sp) }
+                ) { Text("⏮", fontSize = 36.sp, color = Color.White) }
 
                 Button(
                     onClick = {
                         if (isPlaying) exoPlayer.pause() else exoPlayer.play()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
                     modifier = Modifier
                         .weight(1.2f)
                         .fillMaxHeight()
-                ) { Text(if (isPlaying) "⏸" else "▶", fontSize = 42.sp) }
+                ) { Text(if (isPlaying) "⏸" else "▶", fontSize = 42.sp, color = Color.White) }
 
                 Button(
                     onClick = {
@@ -257,12 +254,12 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             playMedia(context, exoPlayer, playlist[currentIndex])
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222222)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                     enabled = playlist.isNotEmpty() && currentIndex < playlist.size - 1,
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                ) { Text("⏭", fontSize = 36.sp) }
+                ) { Text("⏭", fontSize = 36.sp, color = Color.White) }
             }
         }
     } else {
@@ -289,7 +286,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Text(
                 text = miaubertoStatusText,
-                color = Color(0xFFFF8A80),
+                color = Color(0xFF38BDF8), // Azul fresco
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 textAlign = TextAlign.Center,
@@ -300,7 +297,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(180.dp)
-                    .background(Color.Black, shape = RoundedCornerShape(12.dp))
+                    .background(Color(0xFF020617), shape = RoundedCornerShape(12.dp))
                     .pointerInput(Unit) {
                         detectTapGestures(
                             onDoubleTap = { offset ->
@@ -353,13 +350,13 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
                 if (gestureOverlayText.isNotEmpty()) {
                     Surface(
-                        color = Color.Black.copy(alpha = 0.7f),
+                        color = Color(0xFF0F172A).copy(alpha = 0.85f),
                         shape = RoundedCornerShape(8.dp),
                         modifier = Modifier.align(Alignment.Center)
                     ) {
                         Text(
                             text = gestureOverlayText,
-                            color = Color.White,
+                            color = Color(0xFF38BDF8),
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -391,35 +388,35 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             }
                             exoPlayer.playbackParameters = PlaybackParameters(currentSpeed)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text("🚀 ${currentSpeed}x", fontSize = 11.sp) }
+                    ) { Text("🚀 ${currentSpeed}x", fontSize = 11.sp, color = Color.White) }
 
                     Button(
                         onClick = { isCarMode = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text("🚗 Coche", fontSize = 11.sp) }
+                    ) { Text("🚗 Coche", fontSize = 11.sp, color = Color.White) }
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Button(
                         onClick = { startSleepTimer(15) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text("15m", fontSize = 11.sp) }
+                    ) { Text("15m", fontSize = 11.sp, color = Color.LightGray) }
 
                     Button(
                         onClick = { startSleepTimer(30) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text("30m", fontSize = 11.sp) }
+                    ) { Text("30m", fontSize = 11.sp, color = Color.LightGray) }
 
                     Button(
                         onClick = { startSleepTimer(0) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text(sleepTimerText, fontSize = 11.sp) }
+                    ) { Text(sleepTimerText, fontSize = 11.sp, color = Color.White) }
                 }
             }
 
@@ -431,9 +428,9 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             ) {
                 Button(
                     onClick = { filePickerLauncher.launch(arrayOf("audio/*", "video/*")) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
                     modifier = Modifier.weight(1f)
-                ) { Text("📁 Abrir") }
+                ) { Text("📁 Abrir", color = Color.White) }
 
                 Button(
                     onClick = {
@@ -443,9 +440,9 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             triggerSpamReaction()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                     enabled = currentIndex > 0
-                ) { Text("⏮") }
+                ) { Text("⏮", color = Color.White) }
 
                 Button(
                     onClick = {
@@ -455,15 +452,15 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             triggerSpamReaction()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
                     enabled = playlist.isNotEmpty() && currentIndex < playlist.size - 1
-                ) { Text("⏭") }
+                ) { Text("⏭", color = Color.White) }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -472,7 +469,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 Column(modifier = Modifier.padding(8.dp)) {
                     Text(
                         text = "🎤 Info: $lyricsText",
-                        color = Color.LightGray,
+                        color = Color(0xFF94A3B8),
                         fontSize = 12.sp,
                         maxLines = 1
                     )
@@ -482,7 +479,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             Spacer(modifier = Modifier.height(8.dp))
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -495,14 +492,14 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .background(
-                                    if (isSelected) Color(0xFF333333) else Color.Transparent,
+                                    if (isSelected) Color(0xFF334155) else Color.Transparent,
                                     shape = RoundedCornerShape(6.dp)
                                 )
                                 .padding(8.dp)
                         ) {
                             Text(
                                 text = uri.lastPathSegment ?: "Archivo ${index + 1}",
-                                color = if (isSelected) Color(0xFFE50914) else Color.White,
+                                color = if (isSelected) Color(0xFF38BDF8) else Color.White,
                                 fontSize = 12.sp,
                                 maxLines = 1,
                                 modifier = Modifier.weight(1f)
@@ -515,7 +512,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                                 colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                                 contentPadding = PaddingValues(0.dp)
                             ) {
-                                Text("▶", color = Color.White, fontSize = 12.sp)
+                                Text("▶", color = if (isSelected) Color(0xFF38BDF8) else Color.White, fontSize = 12.sp)
                             }
                         }
                     }
@@ -526,7 +523,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Text(
                 text = "Hecho por: Miauberto",
-                color = Color(0xFFE50914),
+                color = Color(0xFF38BDF8),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -544,7 +541,7 @@ fun AudioVisualizerBars(isPlaying: Boolean) {
         modifier = Modifier
             .fillMaxWidth()
             .height(24.dp)
-            .background(Color(0xFF1A1A1A), shape = RoundedCornerShape(6.dp))
+            .background(Color(0xFF020617), shape = RoundedCornerShape(6.dp))
             .padding(horizontal = 12.dp, vertical = 4.dp)
     ) {
         val durations = listOf(400, 600, 350, 500, 700, 450, 550, 380, 620, 480)
@@ -567,7 +564,7 @@ fun AudioVisualizerBars(isPlaying: Boolean) {
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight(heightMultiplier)
-                    .background(Color(0xFFE50914), shape = RoundedCornerShape(2.dp))
+                    .background(Color(0xFF0EA5E9), shape = RoundedCornerShape(2.dp))
             )
         }
     }
@@ -591,8 +588,8 @@ private fun playMedia(context: Context, exoPlayer: ExoPlayer, uri: Uri) {
 fun MiaubertoTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
-            background = Color(0xFF121212),
-            surface = Color(0xFF1E1E1E)
+            background = Color(0xFF0F172A),
+            surface = Color(0xFF1E293B)
         ),
         content = content
     )
