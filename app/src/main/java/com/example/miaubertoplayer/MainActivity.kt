@@ -539,6 +539,14 @@ private fun playMedia(exoPlayer: ExoPlayer, uri: Uri) {
     exoPlayer.setMediaItem(mediaItem)
     exoPlayer.prepare()
     exoPlayer.play()
+
+    // Inicia el servicio para mantener el control en pantalla de bloqueo
+    val intent = Intent(context, PlaybackService::class.java)
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        context.startForegroundService(intent)
+    } else {
+        context.startService(intent)
+    }
 }
 
 @Composable
