@@ -73,6 +73,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     var lyricsText by remember { mutableStateOf("Selecciona archivos multimedia para empezar.") }
 
     var isPlaying by remember { mutableStateOf(false) }
+    var isCarMode by remember { mutableStateOf(false) }
     var miaubertoEmoji by remember { mutableStateOf("😴") }
     var miaubertoStatusText by remember { mutableStateOf("Miauberto está descansando...") }
     var clickCountBySpam by remember { mutableIntStateOf(0) }
@@ -88,8 +89,8 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 override fun onIsPlayingChanged(playing: Boolean) {
                     isPlaying = playing
                     if (playing) {
-                        miaubertoEmoji = "🕶️😼"
-                        miaubertoStatusText = "Miauberto está disfrutando la música."
+                        miaubertoEmoji = if (isCarMode) "🚗😼" else "🕶️😼"
+                        miaubertoStatusText = if (isCarMode) "Modo Coche Activo - Conduce con cuidado" else "Miauberto está disfrutando la música."
                     } else {
                         miaubertoEmoji = "😴"
                         miaubertoStatusText = "En pausa. Miauberto se durmió."
@@ -149,257 +150,348 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(bottom = 4.dp)
-        ) {
-            Text(text = miaubertoEmoji, fontSize = 32.sp)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "MIAUBERTO PLAYER",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-
-        Text(
-            text = miaubertoStatusText,
-            color = Color(0xFFFF8A80),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-
-        // REPRODUCTOR
-        Box(
+    if (isCarMode) {
+        // INTERFAZ MODO COCHE (BOTONES GIGANTES)
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(180.dp)
-                .background(Color.Black, shape = RoundedCornerShape(12.dp))
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onDoubleTap = { offset ->
-                            val width = size.width
-                            if (offset.x < width / 2) {
-                                exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
-                                gestureOverlayText = "⏪ -10s"
-                            } else {
-                                exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration))
-                                gestureOverlayText = "⏩ +10s"
-                            }
-                        }
-                    )
-                }
-                .pointerInput(Unit) {
-                    detectDragGestures(
-                        onDragEnd = { gestureOverlayText = "" }
-                    ) { change, dragAmount ->
-                        change.consume()
-                        val width = size.width
-                        val isLeftSide = change.position.x < width / 2
-
-                        if (isLeftSide) {
-                            val layoutParams = activity.window.attributes
-                            var currentBrightness = if (layoutParams.screenBrightness < 0) 0.5f else layoutParams.screenBrightness
-                            currentBrightness = (currentBrightness - (dragAmount.y / 1000f)).coerceIn(0.1f, 1.0f)
-                            layoutParams.screenBrightness = currentBrightness
-                            activity.window.attributes = layoutParams
-                            gestureOverlayText = "☀️ Brillo: ${(currentBrightness * 100).toInt()}%"
-                        } else {
-                            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-                            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
-                            val delta = if (dragAmount.y < 0) 1 else -1
-                            val newVolume = (currentVolume + delta).coerceIn(0, maxVolume)
-                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
-                            gestureOverlayText = "🔊 Vol: ${(newVolume * 100 / maxVolume)}%"
-                        }
-                    }
-                }
+                .fillMaxSize()
+                .background(Color.Black)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            AndroidView(
-                factory = { ctx ->
-                    PlayerView(ctx).apply {
-                        player = exoPlayer
-                        useController = true
-                    }
-                },
-                modifier = Modifier.fillMaxSize()
-            )
-
-            if (gestureOverlayText.isNotEmpty()) {
-                Surface(
-                    color = Color.Black.copy(alpha = 0.7f),
-                    shape = RoundedCornerShape(8.dp),
-                    modifier = Modifier.align(Alignment.Center)
-                ) {
-                    Text(
-                        text = gestureOverlayText,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // VISUALIZADOR DE AUDIO ANIMADO
-        AudioVisualizerBars(isPlaying = isPlaying)
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // CONTROLES AVANZADOS
-        Row(
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Button(
-                onClick = {
-                    currentSpeed = when (currentSpeed) {
-                        0.5f -> 1.0f
-                        1.0f -> 1.25f
-                        1.25f -> 1.5f
-                        1.5f -> 2.0f
-                        else -> 0.5f
-                    }
-                    exoPlayer.playbackParameters = PlaybackParameters(currentSpeed)
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("🚀 ${currentSpeed}x", fontSize = 12.sp)
+                Text(text = "🚗 MODO COCHE", color = Color(0xFFE50914), fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                Button(
+                    onClick = { isCarMode = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333))
+                ) { Text("❌ Salir", fontSize = 14.sp) }
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                Button(
-                    onClick = { startSleepTimer(15) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
-                    contentPadding = PaddingValues(horizontal = 8.dp)
-                ) { Text("15m", fontSize = 11.sp) }
-
-                Button(
-                    onClick = { startSleepTimer(30) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
-                    contentPadding = PaddingValues(horizontal = 8.dp)
-                ) { Text("30m", fontSize = 11.sp) }
-
-                Button(
-                    onClick = { startSleepTimer(0) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
-                    contentPadding = PaddingValues(horizontal = 8.dp)
-                ) { Text(sleepTimerText, fontSize = 11.sp) }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // BARRAS DE CONTROL BÁSICO
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Button(
-                onClick = { filePickerLauncher.launch("*/*") },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
-                modifier = Modifier.weight(1f)
-            ) { Text("📁 Abrir") }
-
-            Button(
-                onClick = {
-                    if (playlist.isNotEmpty() && currentIndex > 0) {
-                        currentIndex--
-                        playMedia(exoPlayer, playlist[currentIndex])
-                        triggerSpamReaction()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
-                enabled = currentIndex > 0
-            ) { Text("⏮") }
-
-            Button(
-                onClick = {
-                    if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
-                        currentIndex++
-                        playMedia(exoPlayer, playlist[currentIndex])
-                        triggerSpamReaction()
-                    }
-                },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
-                enabled = playlist.isNotEmpty() && currentIndex < playlist.size - 1
-            ) { Text("⏭") }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // PANEL DE LETRAS Y LISTA
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(50.dp)
-        ) {
-            Column(modifier = Modifier.padding(8.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(text = miaubertoEmoji, fontSize = 64.sp)
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(
-                    text = "🎤 Info: $lyricsText",
-                    color = Color.LightGray,
-                    fontSize = 12.sp,
+                    text = if (currentIndex in playlist.indices) playlist[currentIndex].lastPathSegment ?: "Reproduciendo" else "Sin archivo",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center,
                     maxLines = 2
                 )
             }
+
+            // BOTONES DE NAVEGACIÓN GIGANTES
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(100.dp)
+            ) {
+                Button(
+                    onClick = {
+                        if (playlist.isNotEmpty() && currentIndex > 0) {
+                            currentIndex--
+                            playMedia(exoPlayer, playlist[currentIndex])
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222222)),
+                    enabled = currentIndex > 0,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                ) { Text("⏮", fontSize = 36.sp) }
+
+                Button(
+                    onClick = {
+                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                    modifier = Modifier
+                        .weight(1.2f)
+                        .fillMaxHeight()
+                ) { Text(if (isPlaying) "⏸" else "▶", fontSize = 42.sp) }
+
+                Button(
+                    onClick = {
+                        if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
+                            currentIndex++
+                            playMedia(exoPlayer, playlist[currentIndex])
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222222)),
+                    enabled = playlist.isNotEmpty() && currentIndex < playlist.size - 1,
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                ) { Text("⏭", fontSize = 36.sp) }
+            }
         }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
-            shape = RoundedCornerShape(10.dp),
+    } else {
+        // INTERFAZ ESTÁNDAR
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
+                .fillMaxSize()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            LazyColumn(modifier = Modifier.padding(8.dp)) {
-                itemsIndexed(playlist) { index, uri ->
-                    val isSelected = index == currentIndex
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(
-                                if (isSelected) Color(0xFF333333) else Color.Transparent,
-                                shape = RoundedCornerShape(6.dp)
-                            )
-                            .padding(8.dp)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(bottom = 4.dp)
+            ) {
+                Text(text = miaubertoEmoji, fontSize = 32.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "MIAUBERTO PLAYER",
+                    color = Color.White,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Text(
+                text = miaubertoStatusText,
+                color = Color(0xFFFF8A80),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+
+            // REPRODUCTOR
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+                    .background(Color.Black, shape = RoundedCornerShape(12.dp))
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onDoubleTap = { offset ->
+                                val width = size.width
+                                if (offset.x < width / 2) {
+                                    exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
+                                    gestureOverlayText = "⏪ -10s"
+                                } else {
+                                    exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration))
+                                    gestureOverlayText = "⏩ +10s"
+                                }
+                            }
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        detectDragGestures(
+                            onDragEnd = { gestureOverlayText = "" }
+                        ) { change, dragAmount ->
+                            change.consume()
+                            val width = size.width
+                            val isLeftSide = change.position.x < width / 2
+
+                            if (isLeftSide) {
+                                val layoutParams = activity.window.attributes
+                                var currentBrightness = if (layoutParams.screenBrightness < 0) 0.5f else layoutParams.screenBrightness
+                                currentBrightness = (currentBrightness - (dragAmount.y / 1000f)).coerceIn(0.1f, 1.0f)
+                                layoutParams.screenBrightness = currentBrightness
+                                activity.window.attributes = layoutParams
+                                gestureOverlayText = "☀️ Brillo: ${(currentBrightness * 100).toInt()}%"
+                            } else {
+                                val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                                val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                                val delta = if (dragAmount.y < 0) 1 else -1
+                                val newVolume = (currentVolume + delta).coerceIn(0, maxVolume)
+                                audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
+                                gestureOverlayText = "🔊 Vol: ${(newVolume * 100 / maxVolume)}%"
+                            }
+                        }
+                    }
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        PlayerView(ctx).apply {
+                            player = exoPlayer
+                            useController = true
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize()
+                )
+
+                if (gestureOverlayText.isNotEmpty()) {
+                    Surface(
+                        color = Color.Black.copy(alpha = 0.7f),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.align(Alignment.Center)
                     ) {
                         Text(
-                            text = uri.lastPathSegment ?: "Archivo ${index + 1}",
-                            color = if (isSelected) Color(0xFFE50914) else Color.White,
-                            fontSize = 12.sp,
-                            maxLines = 1
+                            text = gestureOverlayText,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
                 }
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // VISUALIZADOR DE AUDIO ANIMADO
+            AudioVisualizerBars(isPlaying = isPlaying)
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // CONTROLES AVANZADOS Y BOTÓN MODO COCHE
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Button(
+                        onClick = {
+                            currentSpeed = when (currentSpeed) {
+                                0.5f -> 1.0f
+                                1.0f -> 1.25f
+                                1.25f -> 1.5f
+                                1.5f -> 2.0f
+                                else -> 0.5f
+                            }
+                            exoPlayer.playbackParameters = PlaybackParameters(currentSpeed)
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF333333)),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) { Text("🚀 ${currentSpeed}x", fontSize = 11.sp) }
+
+                    Button(
+                        onClick = { isCarMode = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) { Text("🚗 Coche", fontSize = 11.sp) }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Button(
+                        onClick = { startSleepTimer(15) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) { Text("15m", fontSize = 11.sp) }
+
+                    Button(
+                        onClick = { startSleepTimer(30) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) { Text("30m", fontSize = 11.sp) }
+
+                    Button(
+                        onClick = { startSleepTimer(0) },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) { Text(sleepTimerText, fontSize = 11.sp) }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // BARRAS DE CONTROL BÁSICO
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Button(
+                    onClick = { filePickerLauncher.launch("*/*") },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE50914)),
+                    modifier = Modifier.weight(1f)
+                ) { Text("📁 Abrir") }
+
+                Button(
+                    onClick = {
+                        if (playlist.isNotEmpty() && currentIndex > 0) {
+                            currentIndex--
+                            playMedia(exoPlayer, playlist[currentIndex])
+                            triggerSpamReaction()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                    enabled = currentIndex > 0
+                ) { Text("⏮") }
+
+                Button(
+                    onClick = {
+                        if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
+                            currentIndex++
+                            playMedia(exoPlayer, playlist[currentIndex])
+                            triggerSpamReaction()
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A)),
+                    enabled = playlist.isNotEmpty() && currentIndex < playlist.size - 1
+                ) { Text("⏭") }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // PANEL DE LETRAS Y LISTA
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(45.dp)
+            ) {
+                Column(modifier = Modifier.padding(8.dp)) {
+                    Text(
+                        text = "🎤 Info: $lyricsText",
+                        color = Color.LightGray,
+                        fontSize = 12.sp,
+                        maxLines = 1
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) {
+                LazyColumn(modifier = Modifier.padding(8.dp)) {
+                    itemsIndexed(playlist) { index, uri ->
+                        val isSelected = index == currentIndex
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(
+                                    if (isSelected) Color(0xFF333333) else Color.Transparent,
+                                    shape = RoundedCornerShape(6.dp)
+                                )
+                                .padding(8.dp)
+                        ) {
+                            Text(
+                                text = uri.lastPathSegment ?: "Archivo ${index + 1}",
+                                color = if (isSelected) Color(0xFFE50914) else Color.White,
+                                fontSize = 12.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = "Hecho por: Miauberto",
+                color = Color(0xFFE50914),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
         }
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-            text = "Hecho por: Miauberto",
-            color = Color(0xFFE50914),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold
-        )
     }
 }
 
