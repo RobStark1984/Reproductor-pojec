@@ -1,15 +1,19 @@
 package com.example.miaubertoplayer
 
 import android.Manifest
+import android.content.Context
+import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -19,6 +23,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -39,7 +44,7 @@ class MainActivity : ComponentActivity() {
                     modifier = Modifier.fillMaxSize(),
                     color = Color(0xFF121212)
                 ) {
-                    MiaubertoPlayerScreen()
+                    MiaubertoPlayerScreen(activity = this)
                 }
             }
         }
@@ -47,32 +52,29 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MiaubertoPlayerScreen() {
+fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     val context = LocalContext.current
+    val audioManager = remember { context.getSystemService(Context.AUDIO_SERVICE) as AudioManager }
 
-    // --- BLOQUE DE PERMISOS PARA NOTIFICACIONES (ANDROID 13+) ---
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        // El usuario aceptó o rechazó las notificaciones
-    }
+    ) { }
 
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
-    // -------------------------------------------------------------
 
     var playlist by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var currentIndex by remember { mutableIntStateOf(-1) }
     var lyricsText by remember { mutableStateOf("Selecciona archivos multimedia para empezar.") }
 
-    // Estados de personalidad de Miauberto
     var isPlaying by remember { mutableStateOf(false) }
     var miaubertoEmoji by remember { mutableStateOf("😴") }
     var miaubertoStatusText by remember { mutableStateOf("Miauberto está descansando...") }
     var clickCountBySpam by remember { mutableIntStateOf(0) }
+    var gestureOverlayText by remember { mutableStateOf("") }
 
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
@@ -91,7 +93,6 @@ fun MiaubertoPlayerScreen() {
         }
     }
 
-    // Detectar si el usuario presiona rápido Siguiente/Anterior (spam)
     fun triggerSpamReaction() {
         clickCountBySpam++
         if (clickCountBySpam >= 4) {
@@ -113,9 +114,7 @@ fun MiaubertoPlayerScreen() {
     }
 
     DisposableEffect(Unit) {
-        onDispose {
-            exoPlayer.release()
-        }
+        onDispose { exoPlayer.release() }
     }
 
     Column(
@@ -124,7 +123,6 @@ fun MiaubertoPlayerScreen() {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        // ENCABEZADO CON REACCIÓN DE MIAUBERTO
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.Center,
@@ -140,7 +138,6 @@ fun MiaubertoPlayerScreen() {
             )
         }
 
-        // MENSAJE DE ESTADO DE MIAUBERTO
         Text(
             text = miaubertoStatusText,
             color = Color(0xFFFF8A80),
@@ -150,12 +147,53 @@ fun MiaubertoPlayerScreen() {
             modifier = Modifier.padding(bottom = 12.dp)
         )
 
-        // REPRODUCTOR
+        // CONTENEDOR DEL REPRODUCTOR CON DETECCIÓN DE GESTOS
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(200.dp)
+                .height(220.dp)
                 .background(Color.Black, shape = RoundedCornerShape(12.dp))
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onDoubleTap = { offset ->
+                            val width = size.width
+                            if (offset.x < width / 2) {
+                                exoPlayer.seekTo((exoPlayer.currentPosition - 10000).coerceAtLeast(0))
+                                gestureOverlayText = "⏪ -10s"
+                            } else {
+                                exoPlayer.seekTo((exoPlayer.currentPosition + 10000).coerceAtMost(exoPlayer.duration))
+                                gestureOverlayText = "⏩ +10s"
+                            }
+                        }
+                    )
+                }
+                .pointerInput(Unit) {
+                    detectDragGestures(
+                        onDragEnd = { gestureOverlayText = "" }
+                    ) { change, dragAmount ->
+                        change.consume()
+                        val width = size.width
+                        val isLeftSide = change.position.x < width / 2
+
+                        if (isLeftSide) {
+                            // Control de Brillo (Lado Izquierdo)
+                            val layoutParams = activity.window.attributes
+                            var currentBrightness = if (layoutParams.screenBrightness < 0) 0.5f else layoutParams.screenBrightness
+                            currentBrightness = (currentBrightness - (dragAmount.y / 1000f)).coerceIn(0.1f, 1.0f)
+                            layoutParams.screenBrightness = currentBrightness
+                            activity.window.attributes = layoutParams
+                            gestureOverlayText = "☀️ Brillo: ${(currentBrightness * 100).toInt()}%"
+                        } else {
+                            // Control de Volumen (Lado Derecho)
+                            val maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
+                            val currentVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+                            val delta = if (dragAmount.y < 0) 1 else -1
+                            val newVolume = (currentVolume + delta).coerceIn(0, maxVolume)
+                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, newVolume, 0)
+                            gestureOverlayText = "🔊 Vol: ${(newVolume * 100 / maxVolume)}%"
+                        }
+                    }
+                }
         ) {
             AndroidView(
                 factory = { ctx ->
@@ -166,11 +204,27 @@ fun MiaubertoPlayerScreen() {
                 },
                 modifier = Modifier.fillMaxSize()
             )
+
+            // Indicador flotante en pantalla para gestos
+            if (gestureOverlayText.isNotEmpty()) {
+                Surface(
+                    color = Color.Black.copy(alpha = 0.7f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.align(Alignment.Center)
+                ) {
+                    Text(
+                        text = gestureOverlayText,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // CONTROLES DE REPRODUCCIÓN
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
@@ -212,13 +266,12 @@ fun MiaubertoPlayerScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // PANEL DE LETRAS
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(10.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .height(100.dp)
+                .height(80.dp)
         ) {
             Column(modifier = Modifier.padding(12.dp)) {
                 Text(
@@ -238,7 +291,6 @@ fun MiaubertoPlayerScreen() {
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        // LISTA DE REPRODUCCIÓN
         Card(
             colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
             shape = RoundedCornerShape(10.dp),
