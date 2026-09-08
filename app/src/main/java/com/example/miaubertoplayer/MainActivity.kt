@@ -2,6 +2,7 @@ package com.example.miaubertoplayer
 
 import android.Manifest
 import android.content.Context
+import android.content.Intent
 import android.media.AudioManager
 import android.net.Uri
 import android.os.Build
@@ -90,7 +91,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     isPlaying = playing
                     if (playing) {
                         miaubertoEmoji = if (isCarMode) "🚗😼" else "🕶️😼"
-                        miaubertoStatusText = if (isCarMode) "Modo Coche Activo - Conduce con cuidado" else "Miauberto está disfrutando la música."
+                        miaubertoStatusText = if (isCarMode) "Modo Coche Activo" else "Miauberto está disfrutando la música."
                     } else {
                         miaubertoEmoji = "😴"
                         miaubertoStatusText = "En pausa. Miauberto se durmió."
@@ -137,7 +138,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         if (uris.isNotEmpty()) {
             playlist = uris
             currentIndex = 0
-            playMedia(exoPlayer, playlist[0])
+            playMedia(context, exoPlayer, playlist[0])
             lyricsText = "Cargado: ${playlist[0].lastPathSegment ?: "Archivo multimedia"}"
             clickCountBySpam = 0
         }
@@ -151,7 +152,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     }
 
     if (isCarMode) {
-        // INTERFAZ MODO COCHE (BOTONES GIGANTES)
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -185,7 +185,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 )
             }
 
-            // BOTONES DE NAVEGACIÓN GIGANTES
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier
@@ -196,7 +195,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     onClick = {
                         if (playlist.isNotEmpty() && currentIndex > 0) {
                             currentIndex--
-                            playMedia(exoPlayer, playlist[currentIndex])
+                            playMedia(context, exoPlayer, playlist[currentIndex])
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222222)),
@@ -220,7 +219,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     onClick = {
                         if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
                             currentIndex++
-                            playMedia(exoPlayer, playlist[currentIndex])
+                            playMedia(context, exoPlayer, playlist[currentIndex])
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF222222)),
@@ -232,7 +231,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             }
         }
     } else {
-        // INTERFAZ ESTÁNDAR
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -263,7 +261,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 modifier = Modifier.padding(bottom = 8.dp)
             )
 
-            // REPRODUCTOR
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -338,12 +335,10 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // VISUALIZADOR DE AUDIO ANIMADO
             AudioVisualizerBars(isPlaying = isPlaying)
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // CONTROLES AVANZADOS Y BOTÓN MODO COCHE
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -395,7 +390,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // BARRAS DE CONTROL BÁSICO
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -410,7 +404,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     onClick = {
                         if (playlist.isNotEmpty() && currentIndex > 0) {
                             currentIndex--
-                            playMedia(exoPlayer, playlist[currentIndex])
+                            playMedia(context, exoPlayer, playlist[currentIndex])
                             triggerSpamReaction()
                         }
                     },
@@ -422,7 +416,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     onClick = {
                         if (playlist.isNotEmpty() && currentIndex < playlist.size - 1) {
                             currentIndex++
-                            playMedia(exoPlayer, playlist[currentIndex])
+                            playMedia(context, exoPlayer, playlist[currentIndex])
                             triggerSpamReaction()
                         }
                     },
@@ -433,7 +427,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // PANEL DE LETRAS Y LISTA
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
                 shape = RoundedCornerShape(10.dp),
@@ -534,13 +527,12 @@ fun AudioVisualizerBars(isPlaying: Boolean) {
     }
 }
 
-private fun playMedia(exoPlayer: ExoPlayer, uri: Uri) {
+private fun playMedia(context: Context, exoPlayer: ExoPlayer, uri: Uri) {
     val mediaItem = MediaItem.fromUri(uri)
     exoPlayer.setMediaItem(mediaItem)
     exoPlayer.prepare()
     exoPlayer.play()
 
-    // Inicia el servicio para mantener el control en pantalla de bloqueo
     val intent = Intent(context, PlaybackService::class.java)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
         context.startForegroundService(intent)
