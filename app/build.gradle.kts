@@ -5,12 +5,12 @@ plugins {
 
 android {
     namespace = "com.example.miaubertoplayer"
-    compileSdk = 35 // Subimos el SDK de compilación para cumplir el requisito de la metadata AAR
+    compileSdk = 34
 
     defaultConfig {
         applicationId = "com.example.miaubertoplayer"
         minSdk = 24
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
     }
