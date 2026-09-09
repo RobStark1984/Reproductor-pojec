@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.media.AudioManager
+import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -49,6 +50,12 @@ import org.json.JSONObject
 import java.io.BufferedReader
 import java.io.InputStreamReader
 
+data class AudioTrackInfo(
+    val uri: Uri,
+    val title: String,
+    val artist: String
+)
+
 data class LrcLine(val timeMs: Long, val text: String)
 
 class MainActivity : ComponentActivity() {
@@ -83,7 +90,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }
     }
 
-    var savedPlaylistsMap by remember { mutableStateOf(loadPlaylistsFromPrefs(sharedPrefs)) }
+    var savedPlaylistsMap by remember { mutableStateOf(loadPlaylistsFromPrefs(context, sharedPrefs)) }
     var currentPlaylistName by remember { mutableStateOf("Lista Principal") }
     var playlist by remember { mutableStateOf(savedPlaylistsMap[currentPlaylistName] ?: emptyList()) }
 
@@ -93,7 +100,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
     var currentIndex by remember { mutableIntStateOf(-1) }
 
-    // Estados de Karaoke y Letras
     var lrcLines by remember { mutableStateOf<List<LrcLine>>(emptyList()) }
     var currentLrcIndex by remember { mutableIntStateOf(-1) }
 
@@ -110,7 +116,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
 
-    // Sincronizador en tiempo real para Karaoke
     LaunchedEffect(isPlaying, lrcLines) {
         while (isPlaying && lrcLines.isNotEmpty()) {
             mediaController?.let { controller ->
@@ -210,7 +215,8 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 }
             }
 
-            val updatedList = playlist + uris
+            val newTracks = uris.map { extractAudioMetadata(context, it) }
+            val updatedList = playlist + newTracks
             playlist = updatedList
             val updatedMap = savedPlaylistsMap.toMutableMap()
             updatedMap[currentPlaylistName] = updatedList
@@ -224,7 +230,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }
     }
 
-    // Picker exclusivo para cargar archivo .lrc
     val lrcPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
@@ -297,14 +302,23 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(text = miaubertoEmoji, fontSize = 64.sp)
                 Spacer(modifier = Modifier.height(12.dp))
+                val currentTrack = if (currentIndex in playlist.indices) playlist[currentIndex] else null
                 Text(
-                    text = if (currentIndex in playlist.indices) playlist[currentIndex].lastPathSegment ?: "Reproduciendo" else "Sin archivo",
+                    text = currentTrack?.title ?: "Sin archivo",
                     color = Color.White,
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     textAlign = TextAlign.Center,
-                    maxLines = 2
+                    maxLines = 1
                 )
+                if (currentTrack != null) {
+                    Text(
+                        text = currentTrack.artist,
+                        color = Color(0xFF94A3B8),
+                        fontSize = 15.sp,
+                        textAlign = TextAlign.Center
+                    )
+                }
             }
 
             Row(
@@ -503,7 +517,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // BARRA DE ACCIÓN: SELECCIÓN Y CREACIÓN DE LISTAS
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -623,6 +636,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // LISTA DE REPRODUCCIÓN MOSTRANDO TÍTULO Y ARTISTA ID3
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
                 shape = RoundedCornerShape(10.dp),
@@ -631,7 +645,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     .weight(1f)
             ) {
                 LazyColumn(modifier = Modifier.padding(8.dp)) {
-                    itemsIndexed(playlist) { index, uri ->
+                    itemsIndexed(playlist) { index, track ->
                         val isSelected = index == currentIndex
                         Row(
                             modifier = Modifier
@@ -640,15 +654,24 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                                     if (isSelected) Color(0xFF334155) else Color.Transparent,
                                     shape = RoundedCornerShape(6.dp)
                                 )
-                                .padding(8.dp)
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = uri.lastPathSegment ?: "Archivo ${index + 1}",
-                                color = if (isSelected) Color(0xFF38BDF8) else Color.White,
-                                fontSize = 12.sp,
-                                maxLines = 1,
-                                modifier = Modifier.weight(1f)
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = track.title,
+                                    color = if (isSelected) Color(0xFF38BDF8) else Color.White,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = track.artist,
+                                    color = Color(0xFF94A3B8),
+                                    fontSize = 11.sp,
+                                    maxLines = 1
+                                )
+                            }
                             Button(
                                 onClick = {
                                     currentIndex = index
@@ -676,7 +699,27 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     }
 }
 
-// Parser de archivos de letras .LRC
+// Extraer metadatos ID3 (Título y Artista)
+private fun extractAudioMetadata(context: Context, uri: Uri): AudioTrackInfo {
+    var title = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Pista sin título"
+    var artist = "Artista desconocido"
+
+    try {
+        val mmr = MediaMetadataRetriever()
+        mmr.setDataSource(context, uri)
+        val extractedTitle = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+        val extractedArtist = mmr.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+
+        if (!extractedTitle.isNullOrBlank()) title = extractedTitle
+        if (!extractedArtist.isNullOrBlank()) artist = extractedArtist
+        mmr.release()
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+
+    return AudioTrackInfo(uri, title, artist)
+}
+
 private fun parseLrcFromUri(context: Context, uri: Uri): List<LrcLine> {
     val list = mutableListOf<LrcLine>()
     try {
@@ -746,16 +789,15 @@ fun AudioVisualizerBars(isPlaying: Boolean) {
     }
 }
 
-private fun setFullPlaylistAndPlay(controller: MediaController, uris: List<Uri>, startIndex: Int) {
-    if (uris.isEmpty()) return
-    val mediaItems = uris.map { uri ->
-        val fileName = uri.lastPathSegment ?: "Canción de Miauberto"
+private fun setFullPlaylistAndPlay(controller: MediaController, tracks: List<AudioTrackInfo>, startIndex: Int) {
+    if (tracks.isEmpty()) return
+    val mediaItems = tracks.map { track ->
         MediaItem.Builder()
-            .setUri(uri)
+            .setUri(track.uri)
             .setMediaMetadata(
                 MediaMetadata.Builder()
-                    .setTitle(fileName)
-                    .setArtist("Miauberto Player")
+                    .setTitle(track.title)
+                    .setArtist(track.artist)
                     .build()
             )
             .build()
@@ -766,28 +808,38 @@ private fun setFullPlaylistAndPlay(controller: MediaController, uris: List<Uri>,
     controller.play()
 }
 
-private fun savePlaylistsToPrefs(prefs: android.content.SharedPreferences, map: Map<String, List<Uri>>) {
+private fun savePlaylistsToPrefs(prefs: android.content.SharedPreferences, map: Map<String, List<AudioTrackInfo>>) {
     val jsonObject = JSONObject()
-    map.forEach { (name, uris) ->
+    map.forEach { (name, tracks) ->
         val jsonArray = JSONArray()
-        uris.forEach { jsonArray.put(it.toString()) }
+        tracks.forEach { track ->
+            val item = JSONObject()
+            item.put("uri", track.uri.toString())
+            item.put("title", track.title)
+            item.put("artist", track.artist)
+            jsonArray.put(item)
+        }
         jsonObject.put(name, jsonArray)
     }
-    prefs.edit().putString("all_playlists_json", jsonObject.toString()).apply()
+    prefs.edit().putString("all_playlists_metadata_json", jsonObject.toString()).apply()
 }
 
-private fun loadPlaylistsFromPrefs(prefs: android.content.SharedPreferences): Map<String, List<Uri>> {
-    val jsonString = prefs.getString("all_playlists_json", null) ?: return mapOf("Lista Principal" to emptyList())
-    val map = mutableMapOf<String, List<Uri>>()
+private fun loadPlaylistsFromPrefs(context: Context, prefs: android.content.SharedPreferences): Map<String, List<AudioTrackInfo>> {
+    val jsonString = prefs.getString("all_playlists_metadata_json", null) ?: return mapOf("Lista Principal" to emptyList())
+    val map = mutableMapOf<String, List<AudioTrackInfo>>()
     try {
         val jsonObject = JSONObject(jsonString)
         val keys = jsonObject.keys()
         while (keys.hasNext()) {
             val key = keys.next()
             val array = jsonObject.getJSONArray(key)
-            val list = mutableListOf<Uri>()
+            val list = mutableListOf<AudioTrackInfo>()
             for (i in 0 until array.length()) {
-                list.add(Uri.parse(array.getString(i)))
+                val item = array.getJSONObject(i)
+                val uri = Uri.parse(item.getString("uri"))
+                val title = item.optString("title", "Pista")
+                val artist = item.optString("artist", "Artista desconocido")
+                list.add(AudioTrackInfo(uri, title, artist))
             }
             map[key] = list
         }
