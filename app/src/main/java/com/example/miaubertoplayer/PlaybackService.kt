@@ -1,8 +1,11 @@
 package com.example.miaubertoplayer
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Intent
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.MediaSession
@@ -24,10 +27,32 @@ class PlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
-        // Habilitar la cola de reproducción y comandos multimedia en el servicio
+        player.addListener(object : Player.Listener {
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                super.onMediaItemTransition(mediaItem, reason)
+                notifyWidgets()
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                super.onIsPlayingChanged(isPlaying)
+                notifyWidgets()
+            }
+        })
+
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(object : MediaSession.Callback {})
             .build()
+    }
+
+    private fun notifyWidgets() {
+        val intent1 = Intent(this, MiaubertoWidgetReceiver::class.java).apply {
+            action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+        }
+        val intent2 = Intent(this, MiaubertoWidgetProReceiver::class.java).apply {
+            action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+        }
+        sendBroadcast(intent1)
+        sendBroadcast(intent2)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
