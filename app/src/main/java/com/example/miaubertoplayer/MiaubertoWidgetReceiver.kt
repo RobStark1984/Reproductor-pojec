@@ -6,13 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.widget.RemoteViews
-import androidx.media3.common.Player
-import androidx.media3.session.MediaController
-import androidx.media3.session.SessionToken
-import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.MoreExecutors
 
 class MiaubertoWidgetReceiver : AppWidgetProvider() {
 
@@ -24,45 +18,21 @@ class MiaubertoWidgetReceiver : AppWidgetProvider() {
 
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
-        
         val action = intent.action ?: return
-        if (action.startsWith("com.example.miaubertoplayer.WIDGET_")) {
-            val sessionToken = SessionToken(context, ComponentName(context, PlaybackService::class.java))
-            val controllerFuture: ListenableFuture<MediaController> =
-                MediaController.Builder(context, sessionToken).buildAsync()
 
-            controllerFuture.addListener({
-                try {
-                    val controller = controllerFuture.get()
-                    when (action) {
-                        ACTION_PLAY_PAUSE -> {
-                            if (controller.isPlaying) controller.pause() else controller.play()
-                        }
-                        ACTION_PREV -> controller.seekToPreviousMediaItem()
-                        ACTION_NEXT -> controller.seekToNextMediaItem()
-                        ACTION_SHUFFLE -> controller.shuffleModeEnabled = !controller.shuffleModeEnabled
-                        ACTION_REPEAT -> {
-                            controller.repeatMode = when (controller.repeatMode) {
-                                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                                else -> Player.REPEAT_MODE_OFF
-                            }
-                        }
-                    }
-                    
-                    val appWidgetManager = AppWidgetManager.getInstance(context)
-                    val ids = appWidgetManager.getAppWidgetIds(ComponentName(context, MiaubertoWidgetReceiver::class.java))
-                    for (id in ids) {
-                        updateWidgetState(context, appWidgetManager, id, controller)
-                    }
-                } catch (e: Exception) {
-                    // Si el servicio no está corriendo, abrir MainActivity de forma segura
-                    val launchApp = Intent(context, MainActivity::class.java).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    }
-                    context.startActivity(launchApp)
+        if (action.startsWith("com.example.miaubertoplayer.WIDGET_")) {
+            val serviceIntent = Intent(context, PlaybackService::class.java).apply {
+                this.action = action
+            }
+            try {
+                context.startService(serviceIntent)
+            } catch (e: Exception) {
+                // Fallback para abrir la app de forma segura si el SO bloquea el inicio directo
+                val launchApp = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
                 }
-            }, MoreExecutors.directExecutor())
+                context.startActivity(launchApp)
+            }
         }
     }
 
@@ -70,8 +40,6 @@ class MiaubertoWidgetReceiver : AppWidgetProvider() {
         const val ACTION_PLAY_PAUSE = "com.example.miaubertoplayer.WIDGET_PLAY_PAUSE"
         const val ACTION_PREV = "com.example.miaubertoplayer.WIDGET_PREV"
         const val ACTION_NEXT = "com.example.miaubertoplayer.WIDGET_NEXT"
-        const val ACTION_SHUFFLE = "com.example.miaubertoplayer.WIDGET_SHUFFLE"
-        const val ACTION_REPEAT = "com.example.miaubertoplayer.WIDGET_REPEAT"
 
         fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.miauberto_widget_layout)
@@ -90,22 +58,6 @@ class MiaubertoWidgetReceiver : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.btn_widget_play, createPendingIntent(context, ACTION_PLAY_PAUSE, 1))
             views.setOnClickPendingIntent(R.id.btn_widget_prev, createPendingIntent(context, ACTION_PREV, 2))
             views.setOnClickPendingIntent(R.id.btn_widget_next, createPendingIntent(context, ACTION_NEXT, 3))
-
-            appWidgetManager.updateAppWidget(appWidgetId, views)
-        }
-
-        private fun updateWidgetState(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int, controller: MediaController) {
-            val views = RemoteViews(context.packageName, R.layout.miauberto_widget_layout)
-            
-            val mediaMetadata = controller.currentMediaItem?.mediaMetadata
-            val trackTitle = mediaMetadata?.title?.toString() ?: "Miauberto Player"
-            val artist = mediaMetadata?.artist?.toString() ?: "Sin reproducción"
-
-            views.setTextViewText(R.id.widget_title, trackTitle)
-            views.setTextViewText(R.id.widget_status, artist)
-
-            val playIcon = if (controller.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
-            views.setImageViewResource(R.id.btn_widget_play, playIcon)
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
