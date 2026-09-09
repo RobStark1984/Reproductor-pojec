@@ -40,16 +40,30 @@
             </intent-filter>
         </service>
         <!-- Receptor para el Widget de Escritorio de Miauberto -->
+<!-- Receptor 1: Widget Compacto -->
 <receiver
     android:name=".MiaubertoWidgetReceiver"
     android:exported="true"
-    android:label="Miauberto Player Widget">
+    android:label="Miauberto Compacto">
     <intent-filter>
         <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
     </intent-filter>
     <meta-data
         android:name="android.appwidget.provider"
         android:resource="@xml/miauberto_widget_info" />
+</receiver>
+
+<!-- Receptor 2: Widget Pro Expandido -->
+<receiver
+    android:name=".MiaubertoWidgetProReceiver"
+    android:exported="true"
+    android:label="Miauberto Pro Full">
+    <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+    </intent-filter>
+    <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/miauberto_widget_pro_info" />
 </receiver>
     </application>
 
