@@ -105,6 +105,9 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
     var isPlaying by remember { mutableStateOf(false) }
     var isCarMode by remember { mutableStateOf(false) }
+    var isShuffleMode by remember { mutableStateOf(false) }
+    var repeatModeState by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) } // OFF, ALL, ONE
+
     var miaubertoEmoji by remember { mutableStateOf("😴") }
     var miaubertoStatusText by remember { mutableStateOf("Miauberto está descansando...") }
     var clickCountBySpam by remember { mutableIntStateOf(0) }
@@ -460,12 +463,52 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // FILA DE CONTROLES: ALEATORIO, REPETICIÓN, VELOCIDAD, MODO COCHE, KARAOKE, TIMER
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    // Botón Reproducción Aleatoria (Shuffle)
+                    Button(
+                        onClick = {
+                            isShuffleMode = !isShuffleMode
+                            mediaController?.shuffleModeEnabled = isShuffleMode
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isShuffleMode) Color(0xFF0EA5E9) else Color(0xFF334155)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) { Text("🔀", fontSize = 12.sp, color = Color.White) }
+
+                    // Botón Repetición (Repeat: Off -> All -> One)
+                    Button(
+                        onClick = {
+                            repeatModeState = when (repeatModeState) {
+                                Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                                Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                                else -> Player.REPEAT_MODE_OFF
+                            }
+                            mediaController?.repeatMode = repeatModeState
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (repeatModeState != Player.REPEAT_MODE_OFF) Color(0xFF0EA5E9) else Color(0xFF334155)
+                        ),
+                        contentPadding = PaddingValues(horizontal = 8.dp)
+                    ) {
+                        Text(
+                            text = when (repeatModeState) {
+                                Player.REPEAT_MODE_ALL -> "🔁 Todo"
+                                Player.REPEAT_MODE_ONE -> "🔂 Una"
+                                else -> "🔁 Off"
+                            },
+                            fontSize = 11.sp,
+                            color = Color.White
+                        )
+                    }
+
+                    // Velocidad
                     Button(
                         onClick = {
                             currentSpeed = when (currentSpeed) {
@@ -479,36 +522,31 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF334155)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text("🚀 ${currentSpeed}x", fontSize = 11.sp, color = Color.White) }
+                    ) { Text("${currentSpeed}x", fontSize = 11.sp, color = Color.White) }
+                }
 
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Button(
                         onClick = { isCarMode = true },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text("🚗 Coche", fontSize = 11.sp, color = Color.White) }
+                    ) { Text("🚗", fontSize = 11.sp, color = Color.White) }
 
                     Button(
                         onClick = { lrcPickerLauncher.launch("*/*") },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0D9488)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text("🎤 .LRC", fontSize = 11.sp, color = Color.White) }
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Button(
-                        onClick = { startSleepTimer(15) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text("15m", fontSize = 11.sp, color = Color.LightGray) }
+                    ) { Text("🎤", fontSize = 11.sp, color = Color.White) }
 
                     Button(
-                        onClick = { startSleepTimer(30) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E293B)),
-                        contentPadding = PaddingValues(horizontal = 8.dp)
-                    ) { Text("30m", fontSize = 11.sp, color = Color.LightGray) }
-
-                    Button(
-                        onClick = { startSleepTimer(0) },
+                        onClick = {
+                            val nextMins = when (sleepTimerText) {
+                                "⏱️ Off" -> 15
+                                "⏱️ 15m" -> 30
+                                else -> 0
+                            }
+                            startSleepTimer(nextMins)
+                        },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) { Text(sleepTimerText, fontSize = 11.sp, color = Color.White) }
@@ -517,6 +555,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // BARRA DE ACCIÓN: SELECCIÓN Y CREACIÓN DE LISTAS
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -636,7 +675,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // LISTA DE REPRODUCCIÓN MOSTRANDO TÍTULO Y ARTISTA ID3
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
                 shape = RoundedCornerShape(10.dp),
@@ -699,7 +737,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     }
 }
 
-// Extraer metadatos ID3 (Título y Artista)
 private fun extractAudioMetadata(context: Context, uri: Uri): AudioTrackInfo {
     var title = uri.lastPathSegment?.substringAfterLast('/')?.substringBeforeLast('.') ?: "Pista sin título"
     var artist = "Artista desconocido"
@@ -753,7 +790,7 @@ private fun parseLrcFromUri(context: Context, uri: Uri): List<LrcLine> {
 @Composable
 fun AudioVisualizerBars(isPlaying: Boolean) {
     val infiniteTransition = rememberInfiniteTransition(label = "visualizer")
-    
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.Bottom,
