@@ -13,7 +13,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
-        
+
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
@@ -24,6 +24,7 @@ class PlaybackService : MediaSessionService() {
             .setHandleAudioBecomingNoisy(true)
             .build()
 
+        // Habilitar la cola de reproducción y comandos multimedia en el servicio
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(object : MediaSession.Callback {})
             .build()
