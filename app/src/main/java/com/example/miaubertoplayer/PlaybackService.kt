@@ -3,6 +3,7 @@ package com.example.miaubertoplayer
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.os.CountDownTimer
 import android.widget.RemoteViews
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -15,6 +16,9 @@ import androidx.media3.session.MediaSessionService
 class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var player: ExoPlayer? = null
+
+    private var widgetSleepTimerMinutes = 0
+    private var widgetTimerObj: CountDownTimer? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -73,6 +77,15 @@ class PlaybackService : MediaSessionService() {
                         else -> Player.REPEAT_MODE_OFF
                     }
                 }
+                MiaubertoWidgetProReceiver.ACTION_PRO_SLEEP -> {
+                    val nextMins = when (widgetSleepTimerMinutes) {
+                        0 -> 15
+                        15 -> 30
+                        30 -> 60
+                        else -> 0
+                    }
+                    setWidgetSleepTimer(nextMins)
+                }
             }
             updateWidgetsUI()
         }
@@ -80,12 +93,48 @@ class PlaybackService : MediaSessionService() {
         return super.onStartCommand(intent, flags, startId)
     }
 
+    private fun setWidgetSleepTimer(minutes: Int) {
+        widgetTimerObj?.cancel()
+        widgetSleepTimerMinutes = minutes
+
+        if (minutes == 0) {
+            updateWidgetsUI()
+            return
+        }
+
+        val millis = minutes * 60 * 1000L
+        widgetTimerObj = object : CountDownTimer(millis, 1000) {
+            override fun onTick(millisUntilFinished: Long) {
+                // Actualización interna del temporizador
+            }
+
+            override fun onFinish() {
+                player?.pause()
+                widgetSleepTimerMinutes = 0
+                updateWidgetsUI()
+            }
+        }.start()
+    }
+
     private fun updateWidgetsUI() {
         val p = player ?: return
         val appWidgetManager = AppWidgetManager.getInstance(this)
 
         val title = p.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Miauberto Player"
-        val artist = p.currentMediaItem?.mediaMetadata?.artist?.toString() ?: if (p.isPlaying) "Reproduciendo" else "En pausa"
+        val statusText = buildString {
+            append(p.currentMediaItem?.mediaMetadata?.artist?.toString() ?: if (p.isPlaying) "Reproduciendo" else "En pausa")
+            if (widgetSleepTimerMinutes > 0) {
+                append(" • ⏱️ ${widgetSleepTimerMinutes}m")
+            }
+            if (p.shuffleModeEnabled) {
+                append(" • 🔀")
+            }
+            when (p.repeatMode) {
+                Player.REPEAT_MODE_ALL -> append(" • 🔁")
+                Player.REPEAT_MODE_ONE -> append(" • 🔂")
+            }
+        }
+
         val playIcon = if (p.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
 
         // Actualizar Widget Compacto
@@ -94,7 +143,7 @@ class PlaybackService : MediaSessionService() {
         for (id in ids1) {
             val views = RemoteViews(packageName, R.layout.miauberto_widget_layout)
             views.setTextViewText(R.id.widget_title, title)
-            views.setTextViewText(R.id.widget_status, artist)
+            views.setTextViewText(R.id.widget_status, statusText)
             views.setImageViewResource(R.id.btn_widget_play, playIcon)
             MiaubertoWidgetReceiver.updateWidget(this, appWidgetManager, id)
             appWidgetManager.updateAppWidget(id, views)
@@ -106,7 +155,7 @@ class PlaybackService : MediaSessionService() {
         for (id in ids2) {
             val views = RemoteViews(packageName, R.layout.miauberto_widget_pro_layout)
             views.setTextViewText(R.id.widget_title, title)
-            views.setTextViewText(R.id.widget_status, artist)
+            views.setTextViewText(R.id.widget_status, statusText)
             views.setImageViewResource(R.id.btn_widget_play, playIcon)
             MiaubertoWidgetProReceiver.updateWidget(this, appWidgetManager, id)
             appWidgetManager.updateAppWidget(id, views)
@@ -118,6 +167,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        widgetTimerObj?.cancel()
         mediaSession?.run {
             player.release()
             release()
