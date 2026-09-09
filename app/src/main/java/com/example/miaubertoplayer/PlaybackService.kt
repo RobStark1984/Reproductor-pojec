@@ -3,6 +3,7 @@ package com.example.miaubertoplayer
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.widget.RemoteViews
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -13,6 +14,7 @@ import androidx.media3.session.MediaSessionService
 
 class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
+    private var player: ExoPlayer? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -22,37 +24,93 @@ class PlaybackService : MediaSessionService() {
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
-        val player = ExoPlayer.Builder(this)
+        val exoPlayer = ExoPlayer.Builder(this)
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .build()
 
-        player.addListener(object : Player.Listener {
+        player = exoPlayer
+
+        exoPlayer.addListener(object : Player.Listener {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 super.onMediaItemTransition(mediaItem, reason)
-                notifyWidgets()
+                updateWidgetsUI()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 super.onIsPlayingChanged(isPlaying)
-                notifyWidgets()
+                updateWidgetsUI()
             }
         })
 
-        mediaSession = MediaSession.Builder(this, player)
+        mediaSession = MediaSession.Builder(this, exoPlayer)
             .setCallback(object : MediaSession.Callback {})
             .build()
     }
 
-    private fun notifyWidgets() {
-        val intent1 = Intent(this, MiaubertoWidgetReceiver::class.java).apply {
-            action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val action = intent?.action
+        val p = player
+
+        if (p != null && action != null) {
+            when (action) {
+                MiaubertoWidgetReceiver.ACTION_PLAY_PAUSE, MiaubertoWidgetProReceiver.ACTION_PRO_PLAY_PAUSE -> {
+                    if (p.isPlaying) p.pause() else p.play()
+                }
+                MiaubertoWidgetReceiver.ACTION_PREV, MiaubertoWidgetProReceiver.ACTION_PRO_PREV -> {
+                    p.seekToPreviousMediaItem()
+                }
+                MiaubertoWidgetReceiver.ACTION_NEXT, MiaubertoWidgetProReceiver.ACTION_PRO_NEXT -> {
+                    p.seekToNextMediaItem()
+                }
+                MiaubertoWidgetProReceiver.ACTION_PRO_SHUFFLE -> {
+                    p.shuffleModeEnabled = !p.shuffleModeEnabled
+                }
+                MiaubertoWidgetProReceiver.ACTION_PRO_REPEAT -> {
+                    p.repeatMode = when (p.repeatMode) {
+                        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
+                        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
+                        else -> Player.REPEAT_MODE_OFF
+                    }
+                }
+            }
+            updateWidgetsUI()
         }
-        val intent2 = Intent(this, MiaubertoWidgetProReceiver::class.java).apply {
-            action = AppWidgetManager.ACTION_APPWIDGET_UPDATE
+
+        return super.onStartCommand(intent, flags, startId)
+    }
+
+    private fun updateWidgetsUI() {
+        val p = player ?: return
+        val appWidgetManager = AppWidgetManager.getInstance(this)
+
+        val title = p.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Miauberto Player"
+        val artist = p.currentMediaItem?.mediaMetadata?.artist?.toString() ?: if (p.isPlaying) "Reproduciendo" else "En pausa"
+        val playIcon = if (p.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+
+        // Actualizar Widget Compacto
+        val comp1 = ComponentName(this, MiaubertoWidgetReceiver::class.java)
+        val ids1 = appWidgetManager.getAppWidgetIds(comp1)
+        for (id in ids1) {
+            val views = RemoteViews(packageName, R.layout.miauberto_widget_layout)
+            views.setTextViewText(R.id.widget_title, title)
+            views.setTextViewText(R.id.widget_status, artist)
+            views.setImageViewResource(R.id.btn_widget_play, playIcon)
+            MiaubertoWidgetReceiver.updateWidget(this, appWidgetManager, id)
+            appWidgetManager.updateAppWidget(id, views)
         }
-        sendBroadcast(intent1)
-        sendBroadcast(intent2)
+
+        // Actualizar Widget Pro
+        val comp2 = ComponentName(this, MiaubertoWidgetProReceiver::class.java)
+        val ids2 = appWidgetManager.getAppWidgetIds(comp2)
+        for (id in ids2) {
+            val views = RemoteViews(packageName, R.layout.miauberto_widget_pro_layout)
+            views.setTextViewText(R.id.widget_title, title)
+            views.setTextViewText(R.id.widget_status, artist)
+            views.setImageViewResource(R.id.btn_widget_play, playIcon)
+            MiaubertoWidgetProReceiver.updateWidget(this, appWidgetManager, id)
+            appWidgetManager.updateAppWidget(id, views)
+        }
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
