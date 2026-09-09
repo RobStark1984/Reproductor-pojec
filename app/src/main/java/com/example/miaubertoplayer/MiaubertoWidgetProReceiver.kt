@@ -32,13 +32,13 @@ class MiaubertoWidgetProReceiver : AppWidgetProvider() {
             try {
                 val controller = controllerFuture.get()
                 when (action) {
-                    MiaubertoWidgetReceiver.ACTION_PLAY_PAUSE -> {
+                    ACTION_PRO_PLAY_PAUSE -> {
                         if (controller.isPlaying) controller.pause() else controller.play()
                     }
-                    MiaubertoWidgetReceiver.ACTION_PREV -> controller.seekToPreviousMediaItem()
-                    MiaubertoWidgetReceiver.ACTION_NEXT -> controller.seekToNextMediaItem()
-                    MiaubertoWidgetReceiver.ACTION_SHUFFLE -> controller.shuffleModeEnabled = !controller.shuffleModeEnabled
-                    MiaubertoWidgetReceiver.ACTION_REPEAT -> {
+                    ACTION_PRO_PREV -> controller.seekToPreviousMediaItem()
+                    ACTION_PRO_NEXT -> controller.seekToNextMediaItem()
+                    ACTION_PRO_SHUFFLE -> controller.shuffleModeEnabled = !controller.shuffleModeEnabled
+                    ACTION_PRO_REPEAT -> {
                         controller.repeatMode = when (controller.repeatMode) {
                             Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
                             Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
@@ -59,6 +59,12 @@ class MiaubertoWidgetProReceiver : AppWidgetProvider() {
     }
 
     companion object {
+        const val ACTION_PRO_PLAY_PAUSE = "com.example.miaubertoplayer.WIDGET_PRO_PLAY_PAUSE"
+        const val ACTION_PRO_PREV = "com.example.miaubertoplayer.WIDGET_PRO_PREV"
+        const val ACTION_PRO_NEXT = "com.example.miaubertoplayer.WIDGET_PRO_NEXT"
+        const val ACTION_PRO_SHUFFLE = "com.example.miaubertoplayer.WIDGET_PRO_SHUFFLE"
+        const val ACTION_PRO_REPEAT = "com.example.miaubertoplayer.WIDGET_PRO_REPEAT"
+
         fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.miauberto_widget_pro_layout)
 
@@ -71,11 +77,11 @@ class MiaubertoWidgetProReceiver : AppWidgetProvider() {
             views.setOnClickPendingIntent(R.id.widget_cat_emoji, pendingOpenApp)
             views.setOnClickPendingIntent(R.id.btn_widget_sleep, pendingOpenApp)
 
-            views.setOnClickPendingIntent(R.id.btn_widget_play, createPendingIntent(context, MiaubertoWidgetReceiver.ACTION_PLAY_PAUSE, 10))
-            views.setOnClickPendingIntent(R.id.btn_widget_prev, createPendingIntent(context, MiaubertoWidgetReceiver.ACTION_PREV, 11))
-            views.setOnClickPendingIntent(R.id.btn_widget_next, createPendingIntent(context, MiaubertoWidgetReceiver.ACTION_NEXT, 12))
-            views.setOnClickPendingIntent(R.id.btn_widget_shuffle, createPendingIntent(context, MiaubertoWidgetReceiver.ACTION_SHUFFLE, 13))
-            views.setOnClickPendingIntent(R.id.btn_widget_repeat, createPendingIntent(context, MiaubertoWidgetReceiver.ACTION_REPEAT, 14))
+            views.setOnClickPendingIntent(R.id.btn_widget_play, createPendingIntent(context, ACTION_PRO_PLAY_PAUSE, 10))
+            views.setOnClickPendingIntent(R.id.btn_widget_prev, createPendingIntent(context, ACTION_PRO_PREV, 11))
+            views.setOnClickPendingIntent(R.id.btn_widget_next, createPendingIntent(context, ACTION_PRO_NEXT, 12))
+            views.setOnClickPendingIntent(R.id.btn_widget_shuffle, createPendingIntent(context, ACTION_PRO_SHUFFLE, 13))
+            views.setOnClickPendingIntent(R.id.btn_widget_repeat, createPendingIntent(context, ACTION_PRO_REPEAT, 14))
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
