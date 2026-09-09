@@ -106,7 +106,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     var isPlaying by remember { mutableStateOf(false) }
     var isCarMode by remember { mutableStateOf(false) }
     var isShuffleMode by remember { mutableStateOf(false) }
-    var repeatModeState by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) } // OFF, ALL, ONE
+    var repeatModeState by remember { mutableIntStateOf(Player.REPEAT_MODE_OFF) }
 
     var miaubertoEmoji by remember { mutableStateOf("😴") }
     var miaubertoStatusText by remember { mutableStateOf("Miauberto está descansando...") }
@@ -114,6 +114,9 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     var gestureOverlayText by remember { mutableStateOf("") }
 
     var currentSpeed by remember { mutableFloatStateOf(1.0f) }
+    
+    // Configuración del Temporizador de Apagado (15m, 30m, 60m)
+    var selectedTimerMinutes by remember { mutableIntStateOf(0) }
     var sleepTimerText by remember { mutableStateOf("⏱️ Off") }
     var timerObj by remember { mutableStateOf<CountDownTimer?>(null) }
 
@@ -182,10 +185,13 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
     fun startSleepTimer(minutes: Int) {
         timerObj?.cancel()
+        selectedTimerMinutes = minutes
+        
         if (minutes == 0) {
             sleepTimerText = "⏱️ Off"
             return
         }
+
         val millis = minutes * 60 * 1000L
         timerObj = object : CountDownTimer(millis, 1000) {
             override fun onTick(millisUntilFinished: Long) {
@@ -196,6 +202,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             override fun onFinish() {
                 mediaController?.pause()
+                selectedTimerMinutes = 0
                 sleepTimerText = "⏱️ Off"
                 miaubertoEmoji = "😴💤"
                 miaubertoStatusText = "Temporizador finalizado. Miauberto se fue a dormir."
@@ -463,14 +470,13 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // FILA DE CONTROLES: ALEATORIO, REPETICIÓN, VELOCIDAD, MODO COCHE, KARAOKE, TIMER
+            // FILA DE CONTROLES
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    // Botón Reproducción Aleatoria (Shuffle)
                     Button(
                         onClick = {
                             isShuffleMode = !isShuffleMode
@@ -482,7 +488,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) { Text("🔀", fontSize = 12.sp, color = Color.White) }
 
-                    // Botón Repetición (Repeat: Off -> All -> One)
                     Button(
                         onClick = {
                             repeatModeState = when (repeatModeState) {
@@ -508,7 +513,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                         )
                     }
 
-                    // Velocidad
                     Button(
                         onClick = {
                             currentSpeed = when (currentSpeed) {
@@ -538,16 +542,20 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) { Text("🎤", fontSize = 11.sp, color = Color.White) }
 
+                    // BOTÓN CORREGIDO: Rotación cíclica de Sleep Timer (0m -> 15m -> 30m -> 60m -> 0m)
                     Button(
                         onClick = {
-                            val nextMins = when (sleepTimerText) {
-                                "⏱️ Off" -> 15
-                                "⏱️ 15m" -> 30
+                            val nextMins = when (selectedTimerMinutes) {
+                                0 -> 15
+                                15 -> 30
+                                30 -> 60
                                 else -> 0
                             }
                             startSleepTimer(nextMins)
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedTimerMinutes > 0) Color(0xFF0EA5E9) else Color(0xFF334155)
+                        ),
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) { Text(sleepTimerText, fontSize = 11.sp, color = Color.White) }
                 }
@@ -555,7 +563,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // BARRA DE ACCIÓN: SELECCIÓN Y CREACIÓN DE LISTAS
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxWidth()
@@ -628,7 +635,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // PANEL DE KARAOKE CON SCROLL AUTOMÁTICO
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color(0xFF1E293B)),
                 shape = RoundedCornerShape(10.dp),
