@@ -1,10 +1,15 @@
 package com.example.miaubertoplayer
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Intent
+import android.os.Build
 import android.os.CountDownTimer
 import android.widget.RemoteViews
+import androidx.core.app.NotificationCompat
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -20,8 +25,15 @@ class PlaybackService : MediaSessionService() {
     private var widgetSleepTimerMinutes = 0
     private var widgetTimerObj: CountDownTimer? = null
 
+    companion object {
+        private const val CHANNEL_ID = "miauberto_playback_channel"
+        private const val NOTIFICATION_ID = 1001
+    }
+
     override fun onCreate() {
         super.onCreate()
+
+        createNotificationChannel()
 
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -43,13 +55,52 @@ class PlaybackService : MediaSessionService() {
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 super.onIsPlayingChanged(isPlaying)
+                if (isPlaying) {
+                    startForegroundServiceWithNotification()
+                }
                 updateWidgetsUI()
             }
         })
 
+        val openAppIntent = Intent(this, MainActivity::class.java)
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         mediaSession = MediaSession.Builder(this, exoPlayer)
+            .setSessionActivity(pendingIntent)
             .setCallback(object : MediaSession.Callback {})
             .build()
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Miauberto Reproducción",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Notificación de control de música de Miauberto Player"
+            }
+            val manager = getSystemService(NotificationManager::class.java)
+            manager?.createNotificationChannel(channel)
+        }
+    }
+
+    private fun startForegroundServiceWithNotification() {
+        val p = player ?: return
+        val title = p.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Miauberto Player"
+        val artist = p.currentMediaItem?.mediaMetadata?.artist?.toString() ?: "Reproduciendo música"
+
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(artist)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setOngoing(true)
+            .build()
+
+        startForeground(NOTIFICATION_ID, notification)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -63,13 +114,11 @@ class PlaybackService : MediaSessionService() {
                 MiaubertoWidgetMiniReceiver.ACTION_MINI_PLAY_PAUSE -> {
                     if (p.isPlaying) p.pause() else p.play()
                 }
-                // Saltos unificados de -5s para todos los widgets
                 MiaubertoWidgetReceiver.ACTION_PREV,
                 MiaubertoWidgetProReceiver.ACTION_PRO_PREV,
                 MiaubertoWidgetMiniReceiver.ACTION_MINI_REWIND -> {
                     p.seekTo((p.currentPosition - 5000).coerceAtLeast(0))
                 }
-                // Saltos unificados de +5s para todos los widgets
                 MiaubertoWidgetReceiver.ACTION_NEXT,
                 MiaubertoWidgetProReceiver.ACTION_PRO_NEXT,
                 MiaubertoWidgetMiniReceiver.ACTION_MINI_FFWD -> {
@@ -143,7 +192,7 @@ class PlaybackService : MediaSessionService() {
 
         val playIcon = if (p.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
 
-        // 1. Actualizar Widget Compacto (2x1)
+        // 1. Widget Compacto
         val comp1 = ComponentName(this, MiaubertoWidgetReceiver::class.java)
         val ids1 = appWidgetManager.getAppWidgetIds(comp1)
         for (id in ids1) {
@@ -155,7 +204,7 @@ class PlaybackService : MediaSessionService() {
             appWidgetManager.updateAppWidget(id, views)
         }
 
-        // 2. Actualizar Widget Pro (3x2)
+        // 2. Widget Pro
         val comp2 = ComponentName(this, MiaubertoWidgetProReceiver::class.java)
         val ids2 = appWidgetManager.getAppWidgetIds(comp2)
         for (id in ids2) {
@@ -167,7 +216,7 @@ class PlaybackService : MediaSessionService() {
             appWidgetManager.updateAppWidget(id, views)
         }
 
-        // 3. Actualizar Widget Mini (2x1)
+        // 3. Widget Mini
         val comp3 = ComponentName(this, MiaubertoWidgetMiniReceiver::class.java)
         val ids3 = appWidgetManager.getAppWidgetIds(comp3)
         for (id in ids3) {
@@ -176,6 +225,10 @@ class PlaybackService : MediaSessionService() {
             MiaubertoWidgetMiniReceiver.updateWidget(this, appWidgetManager, id)
             appWidgetManager.updateAppWidget(id, views)
         }
+
+        // Forzar actualización global enviando un Broadcast al sistema
+        val updateIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
+        sendBroadcast(updateIntent)
     }
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
