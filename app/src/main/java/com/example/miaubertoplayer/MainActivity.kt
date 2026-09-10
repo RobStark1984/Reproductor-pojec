@@ -472,11 +472,11 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                                 mediaController?.let { controller ->
                                     val width = size.width
                                     if (offset.x < width / 2) {
-                                        controller.seekTo((controller.currentPosition - 10000).coerceAtLeast(0))
-                                        gestureOverlayText = "⏪ -10s"
+                                        controller.seekTo((controller.currentPosition - 5000).coerceAtLeast(0))
+                                        gestureOverlayText = "⏪ -5s"
                                     } else {
-                                        controller.seekTo((controller.currentPosition + 10000).coerceAtMost(controller.duration))
-                                        gestureOverlayText = "⏩ +10s"
+                                        controller.seekTo((controller.currentPosition + 5000).coerceAtMost(controller.duration))
+                                        gestureOverlayText = "⏩ +5s"
                                     }
                                 }
                             }
@@ -668,7 +668,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     }
                 }
 
-                // Botón Editar
                 Button(
                     onClick = {
                         editPlaylistNameInput = currentPlaylistName
@@ -678,7 +677,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     contentPadding = PaddingValues(horizontal = 10.dp)
                 ) { Text("✏️", fontSize = 12.sp, color = Color.White) }
 
-                // Botón Eliminar
                 Button(
                     onClick = {
                         if (savedPlaylistsMap.size > 1) {
@@ -701,7 +699,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     contentPadding = PaddingValues(horizontal = 10.dp)
                 ) { Text("🗑️", fontSize = 12.sp, color = Color.White) }
 
-                // Botón Nueva Lista
                 Button(
                     onClick = { showNewPlaylistDialog = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
