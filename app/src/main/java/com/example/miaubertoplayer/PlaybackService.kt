@@ -58,7 +58,9 @@ class PlaybackService : MediaSessionService() {
 
         if (p != null && action != null) {
             when (action) {
-                MiaubertoWidgetReceiver.ACTION_PLAY_PAUSE, MiaubertoWidgetProReceiver.ACTION_PRO_PLAY_PAUSE -> {
+                MiaubertoWidgetReceiver.ACTION_PLAY_PAUSE,
+                MiaubertoWidgetProReceiver.ACTION_PRO_PLAY_PAUSE,
+                MiaubertoWidgetMiniReceiver.ACTION_MINI_PLAY_PAUSE -> {
                     if (p.isPlaying) p.pause() else p.play()
                 }
                 MiaubertoWidgetReceiver.ACTION_PREV, MiaubertoWidgetProReceiver.ACTION_PRO_PREV -> {
@@ -104,9 +106,7 @@ class PlaybackService : MediaSessionService() {
 
         val millis = minutes * 60 * 1000L
         widgetTimerObj = object : CountDownTimer(millis, 1000) {
-            override fun onTick(millisUntilFinished: Long) {
-                // Actualización interna del temporizador
-            }
+            override fun onTick(millisUntilFinished: Long) {}
 
             override fun onFinish() {
                 player?.pause()
@@ -137,7 +137,7 @@ class PlaybackService : MediaSessionService() {
 
         val playIcon = if (p.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
 
-        // Actualizar Widget Compacto
+        // 1. Actualizar Widget Compacto (2x1)
         val comp1 = ComponentName(this, MiaubertoWidgetReceiver::class.java)
         val ids1 = appWidgetManager.getAppWidgetIds(comp1)
         for (id in ids1) {
@@ -149,7 +149,7 @@ class PlaybackService : MediaSessionService() {
             appWidgetManager.updateAppWidget(id, views)
         }
 
-        // Actualizar Widget Pro
+        // 2. Actualizar Widget Pro (3x2)
         val comp2 = ComponentName(this, MiaubertoWidgetProReceiver::class.java)
         val ids2 = appWidgetManager.getAppWidgetIds(comp2)
         for (id in ids2) {
@@ -158,6 +158,16 @@ class PlaybackService : MediaSessionService() {
             views.setTextViewText(R.id.widget_status, statusText)
             views.setImageViewResource(R.id.btn_widget_play, playIcon)
             MiaubertoWidgetProReceiver.updateWidget(this, appWidgetManager, id)
+            appWidgetManager.updateAppWidget(id, views)
+        }
+
+        // 3. Actualizar Widget Mini (1x1)
+        val comp3 = ComponentName(this, MiaubertoWidgetMiniReceiver::class.java)
+        val ids3 = appWidgetManager.getAppWidgetIds(comp3)
+        for (id in ids3) {
+            val views = RemoteViews(packageName, R.layout.miauberto_widget_mini_layout)
+            views.setImageViewResource(R.id.btn_widget_mini_play, playIcon)
+            MiaubertoWidgetMiniReceiver.updateWidget(this, appWidgetManager, id)
             appWidgetManager.updateAppWidget(id, views)
         }
     }
