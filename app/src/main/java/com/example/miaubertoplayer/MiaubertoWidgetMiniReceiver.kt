@@ -19,7 +19,7 @@ class MiaubertoWidgetMiniReceiver : AppWidgetProvider() {
         super.onReceive(context, intent)
         val action = intent.action ?: return
 
-        if (action == ACTION_MINI_PLAY_PAUSE) {
+        if (action.startsWith("com.example.miaubertoplayer.WIDGET_MINI_")) {
             val serviceIntent = Intent(context, PlaybackService::class.java).apply {
                 this.action = action
             }
@@ -32,21 +32,28 @@ class MiaubertoWidgetMiniReceiver : AppWidgetProvider() {
     }
 
     companion object {
+        const val ACTION_MINI_REWIND = "com.example.miaubertoplayer.WIDGET_MINI_REWIND"
         const val ACTION_MINI_PLAY_PAUSE = "com.example.miaubertoplayer.WIDGET_MINI_PLAY_PAUSE"
+        const val ACTION_MINI_FFWD = "com.example.miaubertoplayer.WIDGET_MINI_FFWD"
 
         fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.miauberto_widget_mini_layout)
 
+            views.setOnClickPendingIntent(R.id.btn_widget_mini_rewind, createPendingIntent(context, ACTION_MINI_REWIND, 21))
+            views.setOnClickPendingIntent(R.id.btn_widget_mini_play, createPendingIntent(context, ACTION_MINI_PLAY_PAUSE, 22))
+            views.setOnClickPendingIntent(R.id.btn_widget_mini_ffwd, createPendingIntent(context, ACTION_MINI_FFWD, 23))
+
+            appWidgetManager.updateAppWidget(appWidgetId, views)
+        }
+
+        private fun createPendingIntent(context: Context, action: String, requestCode: Int): PendingIntent {
             val intent = Intent(context, MiaubertoWidgetMiniReceiver::class.java).apply {
-                action = ACTION_MINI_PLAY_PAUSE
+                this.action = action
             }
-            val pendingIntent = PendingIntent.getBroadcast(
-                context, 20, intent,
+            return PendingIntent.getBroadcast(
+                context, requestCode, intent,
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-
-            views.setOnClickPendingIntent(R.id.btn_widget_mini_play, pendingIntent)
-            appWidgetManager.updateAppWidget(appWidgetId, views)
         }
     }
 }
