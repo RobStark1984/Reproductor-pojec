@@ -50,37 +50,37 @@
         </LinearLayout>
     </LinearLayout>
 
-    <!-- Fila 1: Reproducción Principal -->
+    <!-- Fila 1: Cambiar de Canción Completa y Play/Pausa -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center"
         android:orientation="horizontal"
-        android:paddingTop="8dp">
+        android:paddingTop="6dp">
 
         <ImageButton
             android:id="@+id/btn_widget_prev"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="?android:attr/selectableItemBackground"
             android:src="@android:drawable/ic_media_previous" />
 
         <ImageButton
             android:id="@+id/btn_widget_play"
-            android:layout_width="54dp"
-            android:layout_height="54dp"
+            android:layout_width="50dp"
+            android:layout_height="50dp"
             android:background="?android:attr/selectableItemBackground"
             android:src="@android:drawable/ic_media_play" />
 
         <ImageButton
             android:id="@+id/btn_widget_next"
-            android:layout_width="48dp"
-            android:layout_height="48dp"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
             android:background="?android:attr/selectableItemBackground"
             android:src="@android:drawable/ic_media_next" />
     </LinearLayout>
 
-    <!-- Fila 2: Funciones Avanzadas -->
+    <!-- Fila 2: Saltos de 5 segundos (-5s / +5s) y Ajustes -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -89,24 +89,31 @@
         android:paddingTop="4dp">
 
         <ImageButton
+            android:id="@+id/btn_widget_pro_rewind"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
+            android:background="?android:attr/selectableItemBackground"
+            android:src="@android:drawable/ic_media_rew" />
+
+        <ImageButton
             android:id="@+id/btn_widget_shuffle"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="?android:attr/selectableItemBackground"
             android:src="@android:drawable/ic_menu_compass" />
 
         <ImageButton
             android:id="@+id/btn_widget_repeat"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="?android:attr/selectableItemBackground"
             android:src="@android:drawable/ic_menu_revert" />
 
         <ImageButton
-            android:id="@+id/btn_widget_sleep"
-            android:layout_width="40dp"
-            android:layout_height="40dp"
+            android:id="@+id/btn_widget_pro_ffwd"
+            android:layout_width="38dp"
+            android:layout_height="38dp"
             android:background="?android:attr/selectableItemBackground"
-            android:src="@android:drawable/ic_menu_recent_history" />
+            android:src="@android:drawable/ic_media_ff" />
     </LinearLayout>
 </LinearLayout>
