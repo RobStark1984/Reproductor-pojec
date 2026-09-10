@@ -63,17 +63,17 @@ class PlaybackService : MediaSessionService() {
                 MiaubertoWidgetMiniReceiver.ACTION_MINI_PLAY_PAUSE -> {
                     if (p.isPlaying) p.pause() else p.play()
                 }
+                // Saltos unificados de -5s para todos los widgets
+                MiaubertoWidgetReceiver.ACTION_PREV,
+                MiaubertoWidgetProReceiver.ACTION_PRO_PREV,
                 MiaubertoWidgetMiniReceiver.ACTION_MINI_REWIND -> {
                     p.seekTo((p.currentPosition - 5000).coerceAtLeast(0))
                 }
+                // Saltos unificados de +5s para todos los widgets
+                MiaubertoWidgetReceiver.ACTION_NEXT,
+                MiaubertoWidgetProReceiver.ACTION_PRO_NEXT,
                 MiaubertoWidgetMiniReceiver.ACTION_MINI_FFWD -> {
                     p.seekTo((p.currentPosition + 5000).coerceAtMost(p.duration))
-                }
-                MiaubertoWidgetReceiver.ACTION_PREV, MiaubertoWidgetProReceiver.ACTION_PRO_PREV -> {
-                    p.seekToPreviousMediaItem()
-                }
-                MiaubertoWidgetReceiver.ACTION_NEXT, MiaubertoWidgetProReceiver.ACTION_PRO_NEXT -> {
-                    p.seekToNextMediaItem()
                 }
                 MiaubertoWidgetProReceiver.ACTION_PRO_SHUFFLE -> {
                     p.shuffleModeEnabled = !p.shuffleModeEnabled
@@ -143,7 +143,7 @@ class PlaybackService : MediaSessionService() {
 
         val playIcon = if (p.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
 
-        // 1. Actualizar Widget Compacto (2x1 estándar)
+        // 1. Actualizar Widget Compacto (2x1)
         val comp1 = ComponentName(this, MiaubertoWidgetReceiver::class.java)
         val ids1 = appWidgetManager.getAppWidgetIds(comp1)
         for (id in ids1) {
@@ -167,7 +167,7 @@ class PlaybackService : MediaSessionService() {
             appWidgetManager.updateAppWidget(id, views)
         }
 
-        // 3. Actualizar Widget Mini (-5s, Play/Pausa, +5s)
+        // 3. Actualizar Widget Mini (2x1)
         val comp3 = ComponentName(this, MiaubertoWidgetMiniReceiver::class.java)
         val ids3 = appWidgetManager.getAppWidgetIds(comp3)
         for (id in ids3) {
