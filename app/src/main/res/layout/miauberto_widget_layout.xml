@@ -2,10 +2,11 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:background="#1E293B"
+    android:background="@drawable/widget_border_frame"
     android:orientation="vertical"
     android:padding="12dp">
 
+    <!-- Encabezado con Emoji de Miauberto y Título -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -49,6 +50,7 @@
         </LinearLayout>
     </LinearLayout>
 
+    <!-- Botones de Reproducción -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -65,8 +67,8 @@
 
         <ImageButton
             android:id="@+id/btn_widget_play"
-            android:layout_width="52dp"
-            android:layout_height="52dp"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
             android:background="?android:attr/selectableItemBackground"
             android:src="@android:drawable/ic_media_play" />
 
