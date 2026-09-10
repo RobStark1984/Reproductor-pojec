@@ -35,32 +35,21 @@ class MiaubertoWidgetProReceiver : AppWidgetProvider() {
         const val ACTION_PRO_PLAY_PAUSE = "com.example.miaubertoplayer.WIDGET_PRO_PLAY_PAUSE"
         const val ACTION_PRO_PREV = "com.example.miaubertoplayer.WIDGET_PRO_PREV"
         const val ACTION_PRO_NEXT = "com.example.miaubertoplayer.WIDGET_PRO_NEXT"
+        const val ACTION_PRO_REWIND = "com.example.miaubertoplayer.WIDGET_PRO_REWIND"
+        const val ACTION_PRO_FFWD = "com.example.miaubertoplayer.WIDGET_PRO_FFWD"
         const val ACTION_PRO_SHUFFLE = "com.example.miaubertoplayer.WIDGET_PRO_SHUFFLE"
         const val ACTION_PRO_REPEAT = "com.example.miaubertoplayer.WIDGET_PRO_REPEAT"
-        const val ACTION_PRO_SLEEP = "com.example.miaubertoplayer.WIDGET_PRO_SLEEP"
 
         fun updateWidget(context: Context, appWidgetManager: AppWidgetManager, appWidgetId: Int) {
             val views = RemoteViews(context.packageName, R.layout.miauberto_widget_pro_layout)
 
-            val openAppIntent = Intent(context, MainActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            }
-            val pendingOpenApp = PendingIntent.getActivity(
-                context, 0, openAppIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-
-            // Tocar el título o la carita de Miauberto abre la app
-            views.setOnClickPendingIntent(R.id.widget_title, pendingOpenApp)
-            views.setOnClickPendingIntent(R.id.widget_cat_emoji, pendingOpenApp)
-
-            // Todos los botones de control ejecutan acciones en segundo plano directamente en el servicio
             views.setOnClickPendingIntent(R.id.btn_widget_play, createPendingIntent(context, ACTION_PRO_PLAY_PAUSE, 10))
             views.setOnClickPendingIntent(R.id.btn_widget_prev, createPendingIntent(context, ACTION_PRO_PREV, 11))
             views.setOnClickPendingIntent(R.id.btn_widget_next, createPendingIntent(context, ACTION_PRO_NEXT, 12))
-            views.setOnClickPendingIntent(R.id.btn_widget_shuffle, createPendingIntent(context, ACTION_PRO_SHUFFLE, 13))
-            views.setOnClickPendingIntent(R.id.btn_widget_repeat, createPendingIntent(context, ACTION_PRO_REPEAT, 14))
-            views.setOnClickPendingIntent(R.id.btn_widget_sleep, createPendingIntent(context, ACTION_PRO_SLEEP, 15))
+            views.setOnClickPendingIntent(R.id.btn_widget_pro_rewind, createPendingIntent(context, ACTION_PRO_REWIND, 13))
+            views.setOnClickPendingIntent(R.id.btn_widget_pro_ffwd, createPendingIntent(context, ACTION_PRO_FFWD, 14))
+            views.setOnClickPendingIntent(R.id.btn_widget_shuffle, createPendingIntent(context, ACTION_PRO_SHUFFLE, 15))
+            views.setOnClickPendingIntent(R.id.btn_widget_repeat, createPendingIntent(context, ACTION_PRO_REPEAT, 16))
 
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
