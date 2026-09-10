@@ -92,11 +92,15 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
     }
 
     var savedPlaylistsMap by remember { mutableStateOf(loadPlaylistsFromPrefs(context, sharedPrefs)) }
-    var currentPlaylistName by remember { mutableStateOf("Lista Principal") }
+    var currentPlaylistName by remember { mutableStateOf(savedPlaylistsMap.keys.firstOrNull() ?: "Lista Principal") }
     var playlist by remember { mutableStateOf(savedPlaylistsMap[currentPlaylistName] ?: emptyList()) }
 
     var showNewPlaylistDialog by remember { mutableStateOf(false) }
     var newPlaylistNameInput by remember { mutableStateOf("") }
+    
+    var showEditPlaylistDialog by remember { mutableStateOf(false) }
+    var editPlaylistNameInput by remember { mutableStateOf("") }
+
     var showSelectPlaylistMenu by remember { mutableStateOf(false) }
 
     var currentIndex by remember { mutableIntStateOf(-1) }
@@ -266,6 +270,7 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
         }
     }
 
+    // DIÁLOGO CREAR NUEVA LISTA
     if (showNewPlaylistDialog) {
         AlertDialog(
             onDismissRequest = { showNewPlaylistDialog = false },
@@ -299,6 +304,45 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             },
             dismissButton = {
                 TextButton(onClick = { showNewPlaylistDialog = false }) { Text("Cancelar", color = Color.Gray) }
+            },
+            containerColor = Color(0xFF1E293B)
+        )
+    }
+
+    // DIÁLOGO RENOMBRAR LISTA
+    if (showEditPlaylistDialog) {
+        AlertDialog(
+            onDismissRequest = { showEditPlaylistDialog = false },
+            title = { Text("Renombrar Lista", color = Color.White) },
+            text = {
+                OutlinedTextField(
+                    value = editPlaylistNameInput,
+                    onValueChange = { editPlaylistNameInput = it },
+                    label = { Text("Nuevo nombre") },
+                    singleLine = true
+                )
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (editPlaylistNameInput.isNotBlank() && editPlaylistNameInput != currentPlaylistName) {
+                            val updatedMap = savedPlaylistsMap.toMutableMap()
+                            val currentTracks = updatedMap.remove(currentPlaylistName) ?: emptyList()
+                            updatedMap[editPlaylistNameInput] = currentTracks
+                            
+                            savedPlaylistsMap = updatedMap
+                            savePlaylistsToPrefs(sharedPrefs, updatedMap)
+                            currentPlaylistName = editPlaylistNameInput
+                            
+                            editPlaylistNameInput = ""
+                            showEditPlaylistDialog = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9))
+                ) { Text("Guardar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditPlaylistDialog = false }) { Text("Cancelar", color = Color.Gray) }
             },
             containerColor = Color(0xFF1E293B)
         )
@@ -589,8 +633,10 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // SECCIÓN GESTIÓN DE LISTAS (SELECCIONAR, EDITAR, ELIMINAR, NUEVA)
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Box(modifier = Modifier.weight(1f)) {
@@ -622,10 +668,45 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                     }
                 }
 
+                // Botón Editar
+                Button(
+                    onClick = {
+                        editPlaylistNameInput = currentPlaylistName
+                        showEditPlaylistDialog = true
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7)),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) { Text("✏️", fontSize = 12.sp, color = Color.White) }
+
+                // Botón Eliminar
+                Button(
+                    onClick = {
+                        if (savedPlaylistsMap.size > 1) {
+                            val updatedMap = savedPlaylistsMap.toMutableMap()
+                            updatedMap.remove(currentPlaylistName)
+                            
+                            val nextPlaylistName = updatedMap.keys.first()
+                            savedPlaylistsMap = updatedMap
+                            savePlaylistsToPrefs(sharedPrefs, updatedMap)
+                            
+                            currentPlaylistName = nextPlaylistName
+                            playlist = updatedMap[nextPlaylistName] ?: emptyList()
+                            currentIndex = -1
+                            miaubertoStatusText = "Lista eliminada"
+                        } else {
+                            miaubertoStatusText = "Debes conservar al menos una lista"
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) { Text("🗑️", fontSize = 12.sp, color = Color.White) }
+
+                // Botón Nueva Lista
                 Button(
                     onClick = { showNewPlaylistDialog = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0284C7))
-                ) { Text("➕ Nueva Lista", fontSize = 12.sp, color = Color.White) }
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) { Text("➕", fontSize = 12.sp, color = Color.White) }
             }
 
             Spacer(modifier = Modifier.height(8.dp))
