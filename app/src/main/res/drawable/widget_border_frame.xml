@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    
+    <!-- Fondo oscuro sutil -->
+    <solid android:color="#0F172A" />
+    
+    <!-- Marco/Borde decorativo de color azul neón -->
+    <stroke
+        android:width="2dp"
+        android:color="#38BDF8" />
+        
+    <!-- Esquinas redondeadas -->
+    <corners android:radius="16dp" />
+</shape>
