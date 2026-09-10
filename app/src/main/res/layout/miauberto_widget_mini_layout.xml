@@ -4,13 +4,27 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_border_frame"
     android:gravity="center"
-    android:orientation="vertical"
+    android:orientation="horizontal"
     android:padding="4dp">
 
     <ImageButton
+        android:id="@+id/btn_widget_mini_rewind"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:src="@android:drawable/ic_media_rew" />
+
+    <ImageButton
         android:id="@+id/btn_widget_mini_play"
-        android:layout_width="40dp"
-        android:layout_height="40dp"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
         android:background="?android:attr/selectableItemBackground"
         android:src="@android:drawable/ic_media_play" />
+
+    <ImageButton
+        android:id="@+id/btn_widget_mini_ffwd"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:background="?android:attr/selectableItemBackground"
+        android:src="@android:drawable/ic_media_ff" />
 </LinearLayout>
