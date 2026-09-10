@@ -65,6 +65,17 @@
         android:name="android.appwidget.provider"
         android:resource="@xml/miauberto_widget_pro_info" />
 </receiver>
+        <receiver
+    android:name=".MiaubertoWidgetMiniReceiver"
+    android:exported="true">
+    <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+        <action android:name="com.example.miaubertoplayer.WIDGET_MINI_PLAY_PAUSE" />
+    </intent-filter>
+    <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/miauberto_widget_mini_info" />
+</receiver>
     </application>
 
 </manifest>
