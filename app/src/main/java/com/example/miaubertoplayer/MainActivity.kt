@@ -28,6 +28,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -115,12 +116,27 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
     var currentSpeed by remember { mutableFloatStateOf(1.0f) }
     
-    // Configuración del Temporizador de Apagado (15m, 30m, 60m)
     var selectedTimerMinutes by remember { mutableIntStateOf(0) }
     var sleepTimerText by remember { mutableStateOf("⏱️ Off") }
     var timerObj by remember { mutableStateOf<CountDownTimer?>(null) }
 
     var mediaController by remember { mutableStateOf<MediaController?>(null) }
+
+    // ANIMACIÓN DE ROTACIÓN LEVE PARA MIAUBERTO
+    val infiniteTransition = rememberInfiniteTransition(label = "cat_rotation")
+    val catRotationAngle by if (isPlaying) {
+        infiniteTransition.animateFloat(
+            initialValue = -6f,
+            targetValue = 6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 1000, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "cat_angle"
+        )
+    } else {
+        remember { mutableFloatStateOf(0f) }
+    }
 
     LaunchedEffect(isPlaying, lrcLines) {
         while (isPlaying && lrcLines.isNotEmpty()) {
@@ -310,7 +326,13 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
             }
 
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(text = miaubertoEmoji, fontSize = 64.sp)
+                Text(
+                    text = miaubertoEmoji,
+                    fontSize = 64.sp,
+                    modifier = Modifier.graphicsLayer {
+                        rotationZ = catRotationAngle
+                    }
+                )
                 Spacer(modifier = Modifier.height(12.dp))
                 val currentTrack = if (currentIndex in playlist.indices) playlist[currentIndex] else null
                 Text(
@@ -370,7 +392,13 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.padding(bottom = 4.dp)
             ) {
-                Text(text = miaubertoEmoji, fontSize = 32.sp)
+                Text(
+                    text = miaubertoEmoji,
+                    fontSize = 32.sp,
+                    modifier = Modifier.graphicsLayer {
+                        rotationZ = catRotationAngle
+                    }
+                )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "MIAUBERTO PLAYER",
@@ -470,7 +498,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // FILA DE CONTROLES
             Row(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
@@ -542,7 +569,6 @@ fun MiaubertoPlayerScreen(activity: ComponentActivity) {
                         contentPadding = PaddingValues(horizontal = 8.dp)
                     ) { Text("🎤", fontSize = 11.sp, color = Color.White) }
 
-                    // BOTÓN CORREGIDO: Rotación cíclica de Sleep Timer (0m -> 15m -> 30m -> 60m -> 0m)
                     Button(
                         onClick = {
                             val nextMins = when (selectedTimerMinutes) {
