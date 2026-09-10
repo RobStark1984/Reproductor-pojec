@@ -63,6 +63,12 @@ class PlaybackService : MediaSessionService() {
                 MiaubertoWidgetMiniReceiver.ACTION_MINI_PLAY_PAUSE -> {
                     if (p.isPlaying) p.pause() else p.play()
                 }
+                MiaubertoWidgetMiniReceiver.ACTION_MINI_REWIND -> {
+                    p.seekTo((p.currentPosition - 5000).coerceAtLeast(0))
+                }
+                MiaubertoWidgetMiniReceiver.ACTION_MINI_FFWD -> {
+                    p.seekTo((p.currentPosition + 5000).coerceAtMost(p.duration))
+                }
                 MiaubertoWidgetReceiver.ACTION_PREV, MiaubertoWidgetProReceiver.ACTION_PRO_PREV -> {
                     p.seekToPreviousMediaItem()
                 }
@@ -137,7 +143,7 @@ class PlaybackService : MediaSessionService() {
 
         val playIcon = if (p.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
 
-        // 1. Actualizar Widget Compacto (2x1)
+        // 1. Actualizar Widget Compacto (2x1 estándar)
         val comp1 = ComponentName(this, MiaubertoWidgetReceiver::class.java)
         val ids1 = appWidgetManager.getAppWidgetIds(comp1)
         for (id in ids1) {
@@ -161,7 +167,7 @@ class PlaybackService : MediaSessionService() {
             appWidgetManager.updateAppWidget(id, views)
         }
 
-        // 3. Actualizar Widget Mini (1x1)
+        // 3. Actualizar Widget Mini (-5s, Play/Pausa, +5s)
         val comp3 = ComponentName(this, MiaubertoWidgetMiniReceiver::class.java)
         val ids3 = appWidgetManager.getAppWidgetIds(comp3)
         for (id in ids3) {
