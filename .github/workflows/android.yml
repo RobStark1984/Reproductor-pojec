@@ -20,21 +20,18 @@ jobs:
         distribution: 'temurin'
         cache: gradle
 
-    - name: Grant execute permission for gradlew
+    - name: Grant execute permission and build AAB
       run: |
-        if [ -f "gradlew" ]; then
-          chmod +x gradlew
-        else
-          cd Reproductor-pojec && chmod +x gradlew
+        GRADLEW_PATH=$(find . -name "gradlew" | head -n 1)
+        if [ -z "$GRADLEW_PATH" ]; then
+          echo "No se encontró el archivo gradlew en el repositorio"
+          exit 1
         fi
-
-    - name: Build APK and AAB Bundle
-      run: |
-        if [ -f "gradlew" ]; then
-          ./gradlew assembleDebug bundleRelease
-        else
-          cd Reproductor-pojec && ./gradlew assembleDebug bundleRelease
-        fi
+        echo "Gradlew encontrado en: $GRADLEW_PATH"
+        chmod +x "$GRADLEW_PATH"
+        DIR_PATH=$(dirname "$GRADLEW_PATH")
+        cd "$DIR_PATH"
+        ./gradlew assembleDebug bundleRelease
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
