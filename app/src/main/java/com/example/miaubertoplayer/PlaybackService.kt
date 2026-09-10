@@ -109,21 +109,34 @@ class PlaybackService : MediaSessionService() {
 
         if (p != null && action != null) {
             when (action) {
+                // Play / Pausa
                 MiaubertoWidgetReceiver.ACTION_PLAY_PAUSE,
                 MiaubertoWidgetProReceiver.ACTION_PRO_PLAY_PAUSE,
                 MiaubertoWidgetMiniReceiver.ACTION_MINI_PLAY_PAUSE -> {
                     if (p.isPlaying) p.pause() else p.play()
                 }
+
+                // CAMBIAR DE CANCIÓN COMPLETA (Widget Compacto y Pro)
                 MiaubertoWidgetReceiver.ACTION_PREV,
-                MiaubertoWidgetProReceiver.ACTION_PRO_PREV,
-                MiaubertoWidgetMiniReceiver.ACTION_MINI_REWIND -> {
-                    p.seekTo((p.currentPosition - 5000).coerceAtLeast(0))
+                MiaubertoWidgetProReceiver.ACTION_PRO_PREV -> {
+                    p.seekToPreviousMediaItem()
                 }
                 MiaubertoWidgetReceiver.ACTION_NEXT,
-                MiaubertoWidgetProReceiver.ACTION_PRO_NEXT,
-                MiaubertoWidgetMiniReceiver.ACTION_MINI_FFWD -> {
+                MiaubertoWidgetProReceiver.ACTION_PRO_NEXT -> {
+                    p.seekToNextMediaItem()
+                }
+
+                // SALTO DE 5 SEGUNDOS (Widget Mini y Widget Pro)
+                MiaubertoWidgetMiniReceiver.ACTION_MINI_REWIND,
+                MiaubertoWidgetProReceiver.ACTION_PRO_REWIND -> {
+                    p.seekTo((p.currentPosition - 5000).coerceAtLeast(0))
+                }
+                MiaubertoWidgetMiniReceiver.ACTION_MINI_FFWD,
+                MiaubertoWidgetProReceiver.ACTION_PRO_FFWD -> {
                     p.seekTo((p.currentPosition + 5000).coerceAtMost(p.duration))
                 }
+
+                // Modos Adicionales (Widget Pro)
                 MiaubertoWidgetProReceiver.ACTION_PRO_SHUFFLE -> {
                     p.shuffleModeEnabled = !p.shuffleModeEnabled
                 }
@@ -134,41 +147,11 @@ class PlaybackService : MediaSessionService() {
                         else -> Player.REPEAT_MODE_OFF
                     }
                 }
-                MiaubertoWidgetProReceiver.ACTION_PRO_SLEEP -> {
-                    val nextMins = when (widgetSleepTimerMinutes) {
-                        0 -> 15
-                        15 -> 30
-                        30 -> 60
-                        else -> 0
-                    }
-                    setWidgetSleepTimer(nextMins)
-                }
             }
             updateWidgetsUI()
         }
 
         return super.onStartCommand(intent, flags, startId)
-    }
-
-    private fun setWidgetSleepTimer(minutes: Int) {
-        widgetTimerObj?.cancel()
-        widgetSleepTimerMinutes = minutes
-
-        if (minutes == 0) {
-            updateWidgetsUI()
-            return
-        }
-
-        val millis = minutes * 60 * 1000L
-        widgetTimerObj = object : CountDownTimer(millis, 1000) {
-            override fun onTick(millisUntilFinished: Long) {}
-
-            override fun onFinish() {
-                player?.pause()
-                widgetSleepTimerMinutes = 0
-                updateWidgetsUI()
-            }
-        }.start()
     }
 
     private fun updateWidgetsUI() {
@@ -178,9 +161,6 @@ class PlaybackService : MediaSessionService() {
         val title = p.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Miauberto Player"
         val statusText = buildString {
             append(p.currentMediaItem?.mediaMetadata?.artist?.toString() ?: if (p.isPlaying) "Reproduciendo" else "En pausa")
-            if (widgetSleepTimerMinutes > 0) {
-                append(" • ⏱️ ${widgetSleepTimerMinutes}m")
-            }
             if (p.shuffleModeEnabled) {
                 append(" • 🔀")
             }
@@ -192,7 +172,7 @@ class PlaybackService : MediaSessionService() {
 
         val playIcon = if (p.isPlaying) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
 
-        // 1. Widget Compacto
+        // 1. Actualizar Widget Compacto (Cambiar canción)
         val comp1 = ComponentName(this, MiaubertoWidgetReceiver::class.java)
         val ids1 = appWidgetManager.getAppWidgetIds(comp1)
         for (id in ids1) {
@@ -204,7 +184,7 @@ class PlaybackService : MediaSessionService() {
             appWidgetManager.updateAppWidget(id, views)
         }
 
-        // 2. Widget Pro
+        // 2. Actualizar Widget Pro (Canción + Saltos 5s)
         val comp2 = ComponentName(this, MiaubertoWidgetProReceiver::class.java)
         val ids2 = appWidgetManager.getAppWidgetIds(comp2)
         for (id in ids2) {
@@ -216,7 +196,7 @@ class PlaybackService : MediaSessionService() {
             appWidgetManager.updateAppWidget(id, views)
         }
 
-        // 3. Widget Mini
+        // 3. Actualizar Widget Mini (-5s, Play, +5s)
         val comp3 = ComponentName(this, MiaubertoWidgetMiniReceiver::class.java)
         val ids3 = appWidgetManager.getAppWidgetIds(comp3)
         for (id in ids3) {
@@ -226,7 +206,6 @@ class PlaybackService : MediaSessionService() {
             appWidgetManager.updateAppWidget(id, views)
         }
 
-        // Forzar actualización global enviando un Broadcast al sistema
         val updateIntent = Intent(AppWidgetManager.ACTION_APPWIDGET_UPDATE)
         sendBroadcast(updateIntent)
     }
